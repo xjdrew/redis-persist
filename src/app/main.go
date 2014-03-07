@@ -10,7 +10,7 @@ import (
 
     "conf"
     "redis"
-    "gounqlite"
+    "unqlitego"
 )
 
 var config *conf.ConfigFile
@@ -60,7 +60,7 @@ func main() {
     
 
     uql_file,_ := config.GetString("unqlite", "file")
-    uql, err := gounqlite.Open(uql_file)
+    uql, err := unqlitego.NewDatabase(uql_file)
     if err != nil {
         log.Fatalf("open unqlite db failed, file:%s, err:%v", uql_file, err)
         os.Exit(1)
@@ -82,7 +82,7 @@ func main() {
     log.Println("start succeed")
 
     c := make(chan os.Signal, 1)
-    signal.Notify(c, syscall.SIGKILL, syscall.SIGINT, syscall.SIGTERM)
+    signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
     sig := <- c
     log.Printf("catch signal %v, program will exit",sig)
 }

@@ -1,0 +1,13 @@
+language: go
+
+go:
+  - 1.1
+  - 1.2
+  - tip
+
+install:
+  - go get github.com/r7kamura/gospel
+  - go install .
+
+script:
+  - go test .

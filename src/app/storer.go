@@ -6,12 +6,12 @@ import (
     "encoding/json"
 
     "redis"
-    "gounqlite"
+    "unqlitego"
 )
 
 type Storer struct {
     cli *redis.Redis
-    uql *gounqlite.Handle
+    uql *unqlitego.Database
 }
 
 func (s *Storer) reconnect() {
@@ -80,6 +80,12 @@ func (s *Storer) save(key string) {
             if err != nil { // seems bad, but still try to service
                 log.Printf("save key:%s failed, err:%v", key, err)
             } else {
+                err = s.uql.Commit()
+            }
+
+            if err != nil {
+                log.Printf("commit key:%s failed, err:%v", key, err)
+            } else {
                 log.Printf("save key:%s", key)
             }
         }
@@ -97,7 +103,7 @@ func (s *Storer) Start(queue chan string) {
     }
 }
 
-func NewStorer(cli *redis.Redis, uql *gounqlite.Handle ) *Storer {
+func NewStorer(cli *redis.Redis, uql *unqlitego.Database) *Storer {
     return &Storer{cli, uql}
 }
 
