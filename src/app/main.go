@@ -2,6 +2,7 @@ package main
 import (
     "log"
     "fmt"
+    "io"
     "os"
     "os/signal"
     "syscall"
@@ -37,6 +38,15 @@ func main() {
         os.Exit(1)
     }
 
+    logfile,_ := config.GetString("log", "file")
+    fp,err := os.OpenFile(logfile, os.O_RDWR | os.O_APPEND | os.O_CREATE, 0666)
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "open log file failed:%s", err)
+        os.Exit(1)
+    }
+    defer fp.Close()
+    log.SetOutput(io.MultiWriter(fp, os.Stderr))
+
     host,_ := config.GetString("redis", "host")
     password,_ := config.GetString("redis", "password")
     db,_ := config.GetInt("redis", "db")
@@ -55,6 +65,7 @@ func main() {
         log.Fatalf("open unqlite db failed, file:%s, err:%v", uql_file, err)
         os.Exit(1)
     }
+    defer uql.Close()
 
     cli2 := redis.NewRedis(host, password, db)
     s := NewStorer(cli2, uql)
