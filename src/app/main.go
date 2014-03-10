@@ -13,7 +13,10 @@ import (
     "unqlitego"
 )
 
-var config *conf.ConfigFile
+type Context struct {
+    uql *unqlitego.Database
+    redis *redis.Redis
+}
 
 func usage() {
     fmt.Fprintf(os.Stderr, "usage: %s [config]\n", os.Args[0])
@@ -31,8 +34,7 @@ func main() {
         os.Exit(1)
     }
 
-    var err error
-    config, err = conf.ReadConfigFile(args[0])
+    config, err := conf.ReadConfigFile(args[0])
     if err != nil {
         fmt.Fprintf(os.Stderr, "read config file failed:%s", err)
         os.Exit(1)
@@ -52,7 +54,7 @@ func main() {
     db,_ := config.GetInt("redis", "db")
     events,_ := config.GetString("redis", "events")
     channel,_ := config.GetString("redis", "channel")
-
+    
     queue := make(chan string, 1024)
     
     cli1 := redis.NewRedis(host, password, db)
@@ -63,27 +65,31 @@ func main() {
     uql, err := unqlitego.NewDatabase(uql_file)
     if err != nil {
         log.Fatalf("open unqlite db failed, file:%s, err:%v", uql_file, err)
-        os.Exit(1)
-    }
+    } else {
+        log.Printf("open unqlite db succeed, file:%s", uql_file)
+    } 
+
     defer uql.Close()
 
     cli2 := redis.NewRedis(host, password, db)
     s := NewStorer(cli2, uql)
-
-    go func() {
-        m.Start(queue)
-    }()
-
-    go func() {
-        s.Start(queue)
-    }()
     
+    addr,_ := config.GetString("manager", "addr")
+    c := NewCmdService(addr)
+
+    cli3 := redis.NewRedis(host, password, db)
+    context := &Context{uql, cli3}
+    context.Register(c)
+
+    go m.Start(queue)
+    go s.Start(queue)
+    go c.Start()
     
     log.Println("start succeed")
 
-    c := make(chan os.Signal, 1)
-    signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-    sig := <- c
+    quit_flag := make(chan os.Signal, 1)
+    signal.Notify(quit_flag, syscall.SIGINT, syscall.SIGTERM)
+    sig := <- quit_flag
     log.Printf("catch signal %v, program will exit",sig)
 }
 

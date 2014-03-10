@@ -1,6 +1,7 @@
 package redis
 
 import (
+    "log"
     "net"
     "bytes"
     "fmt"
@@ -103,6 +104,10 @@ func (r *Redis) ReadResponse()(interface{}, error) {
 }
 
 func (r *Redis) Exec(cmd string, args ... interface{}) (interface {}, error) {
+    if r.conn == nil {
+        return nil, errors.New("no connection")
+    }
+
     data,err := composeMessage(cmd, args) 
     if err != nil {
         return nil, err
@@ -116,7 +121,35 @@ func (r *Redis) Exec(cmd string, args ... interface{}) (interface {}, error) {
     return readResponse(reader)
 }
 
+func (r* Redis) Hgetall(key string, obj map[string] string) (err error) {
+    resp, err := r.Exec("hgetall", key)
+    if err != nil {
+        return 
+    }
+
+    if values, ok := resp.([]string); ok {
+        sz := len(values)
+        
+        // if sz 不为整数，丢弃最后一项
+        for i:=0;i<sz-1;i=i+2 {
+            obj[values[i]] = values[i+1]
+        }
+    }
+    return
+}
+
+func (r* Redis) Type(key string) (name string, err error) {
+    resp, err := r.Exec("type", key)
+    if err != nil {
+        return 
+    }
+    name = resp.(string)
+    return
+}
+
 func (r *Redis) Connect() (err error) {
+    log.Printf("connect to redis:%s", r.addr)
+
     if r.conn != nil {
         return
     }

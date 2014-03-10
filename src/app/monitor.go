@@ -64,6 +64,8 @@ func (m *Monitor) Start(queue chan string) {
         log.Fatalf("start monitor failed:%v", err)
     }
     
+    log.Print("start monitor succeed")
+
     for {
         resp, err := m.cli.ReadResponse()
         if err != nil {
