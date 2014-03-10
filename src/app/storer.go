@@ -12,6 +12,7 @@ import (
 type Storer struct {
     cli *redis.Redis
     uql *unqlitego.Database
+    qlen int
 }
 
 func (s *Storer) reconnect() {
@@ -88,10 +89,15 @@ func (s *Storer) Start(queue chan string) {
     for {
         key := <- queue
         s.save(key)
+        qlen := len(queue)
+        if qlen > s.qlen {
+            log.Printf("queue grow, current length:%d", qlen)
+        }
+        s.qlen = qlen
     }
 }
 
 func NewStorer(cli *redis.Redis, uql *unqlitego.Database) *Storer {
-    return &Storer{cli, uql}
+    return &Storer{cli, uql, 0}
 }
 
