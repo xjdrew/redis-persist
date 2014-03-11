@@ -11,6 +11,7 @@ type Monitor struct{
     cli *redis.Redis
     events string
     channel string
+    qlen int
 }
 
 func (m *Monitor) subscribe() error {
@@ -82,6 +83,12 @@ func (m *Monitor) Start(queue chan string) {
                 key := data[2]
                 log.Printf("receive [%s], value[%s]", event, key)
                 queue <- key
+
+                qlen := len(queue)
+                if qlen > m.qlen {
+                    log.Printf("queue grow, current length:%d", qlen)
+                }
+                m.qlen = qlen
             }
         } else {
             log.Printf("receive unexpected message, %v", resp)
@@ -90,6 +97,6 @@ func (m *Monitor) Start(queue chan string) {
 }
 
 func NewMonitor(cli *redis.Redis, events string, channel string) *Monitor {
-    return &Monitor{cli, events, channel}
+    return &Monitor{cli, events, channel, 0}
 }
 
