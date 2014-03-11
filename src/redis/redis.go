@@ -36,17 +36,27 @@ func composeMessage(cmd string, args []interface{}) ([] byte, error) {
     return buf.Bytes(), nil
 }
 
-func readBuldString(reader *bufio.Reader, sz int) (str string, err error) {
+func readBulkString(reader *bufio.Reader, sz int) (str string, err error) {
     if sz < 0 {
         return
     }
     
     var buf = make([]byte, sz+2)
-    _,err = reader.Read(buf)
-    if err != nil {
-        return
+    var p = buf
+    for {
+        var n int
+        n,err = reader.Read(p)
+        if err != nil {
+            return
+        }
+        if n < len(p) {
+            p = p[n:]
+        } else {
+            break
+        }
     }
     str = string(buf[:sz])
+    // log.Printf("string:%s", str)
     return
 }
 
@@ -66,7 +76,7 @@ func readResponse(reader *bufio.Reader) (interface{}, error) {
             return strconv.Atoi(content)
         case '$':
             sz,_ := strconv.Atoi(content)
-            return readBuldString(reader, sz)
+            return readBulkString(reader, sz)
         case '*':
             sz,_ := strconv.Atoi(content)
             if sz < 0 {
@@ -75,6 +85,7 @@ func readResponse(reader *bufio.Reader) (interface{}, error) {
             var ret = make([]string, sz)
             for i := 0; i < sz; i++ {
                 nextline,err := reader.ReadString('\n')
+                // log.Printf("header:%s", nextline)
                 if err != nil {
                     return nil, err
                 }
@@ -83,12 +94,13 @@ func readResponse(reader *bufio.Reader) (interface{}, error) {
                     ret[i] = nextcontent
                 } else if nextline[0] == '$' {
                     sz,_ := strconv.Atoi(nextcontent)
-                    s, err := readBuldString(reader, sz)
+                    s, err := readBulkString(reader, sz)
                     if err != nil {
                         return nil, err
                     }
                     ret[i] = s
                 } else {
+                    // log.Fatal("unexpected response(*):" + nextline)
                     return nil, errors.New("unexpected response(*):" + nextline)
                 }
             }
@@ -129,7 +141,6 @@ func (r* Redis) Hgetall(key string, obj map[string] string) (err error) {
 
     if values, ok := resp.([]string); ok {
         sz := len(values)
-        
         // if sz 不为整数，丢弃最后一项
         for i:=0;i<sz-1;i=i+2 {
             obj[values[i]] = values[i+1]
