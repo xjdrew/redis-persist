@@ -62,7 +62,12 @@ func (s *Storer) save(key string) {
         return
     }
     
-    chunk, _ := json.Marshal(obj)
+    chunk, err := json.Marshal(obj)
+    if err != nil {
+        log.Printf("marshal obj failed, key:%s, obj:%v, err:%v", key, obj, err)
+        return
+    }
+    
     err = s.uql.Store([]byte(key), chunk)
     if err != nil { // seems bad, but still try to service
         log.Printf("save key:%s failed, err:%v", key, err)
