@@ -16,6 +16,10 @@ import (
 type Context struct {
     uql *unqlitego.Database
     redis *redis.Redis
+    m *Monitor
+    s *Storer
+    c *CmdService
+    quit_chan chan os.Signal
 }
 
 func usage() {
@@ -62,9 +66,11 @@ func main() {
     
 
     uql_file,_ := config.GetString("unqlite", "file")
+    changes,_  := config.GetInt("unqlite", "changes")
+
     uql, err := unqlitego.NewDatabase(uql_file)
     if err != nil {
-        log.Fatalf("open unqlite db failed, file:%s, err:%v", uql_file, err)
+        log.Panicf("open unqlite db failed, file:%s, err:%v", uql_file, err)
     } else {
         log.Printf("open unqlite db succeed, file:%s", uql_file)
     } 
@@ -72,24 +78,22 @@ func main() {
     defer uql.Close()
 
     cli2 := redis.NewRedis(host, password, db)
-    s := NewStorer(cli2, uql)
+    s := NewStorer(cli2, uql, changes)
     
     addr,_ := config.GetString("manager", "addr")
     c := NewCmdService(addr)
 
     cli3 := redis.NewRedis(host, password, db)
-    context := &Context{uql, cli3}
+    context := &Context{uql, cli3, m, s, c, make(chan os.Signal)}
     context.Register(c)
+
+    signal.Notify(context.quit_chan, syscall.SIGINT, syscall.SIGTERM)
 
     go m.Start(queue)
     go s.Start(queue)
     go c.Start()
     
     log.Println("start succeed")
-
-    quit_flag := make(chan os.Signal, 1)
-    signal.Notify(quit_flag, syscall.SIGINT, syscall.SIGTERM)
-    sig := <- quit_flag
-    log.Printf("catch signal %v, program will exit",sig)
+    log.Printf("catch signal %v, program will exit",<- context.quit_chan)
 }
 

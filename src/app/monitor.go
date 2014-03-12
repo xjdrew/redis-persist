@@ -12,6 +12,8 @@ type Monitor struct{
     events string
     channel string
     qlen int
+    quit_flag bool
+    quit_chan chan int
 }
 
 func (m *Monitor) subscribe() error {
@@ -58,17 +60,23 @@ func (m *Monitor) reconnect() {
 func (m *Monitor) Start(queue chan string) {
     err := m.cli.Connect()
     if err != nil {
-        log.Fatalf("start monitor failed:%v", err)
+        log.Panicf("start monitor failed:%v", err)
     }
     err = m.subscribe()
     if err != nil {
-        log.Fatalf("start monitor failed:%v", err)
+        log.Panicf("start monitor failed:%v", err)
     }
     
     log.Print("start monitor succeed")
 
     for {
         resp, err := m.cli.ReadResponse()
+        if m.quit_flag {
+            close(queue)
+            log.Print("close redis connection, monitor will exit")
+            break
+        }
+
         if err != nil {
             log.Printf("recv message failed, try to reconnect to redis:%v", err)
             m.reconnect()
@@ -94,9 +102,18 @@ func (m *Monitor) Start(queue chan string) {
             log.Printf("receive unexpected message, %v", resp)
         }
     }
+    m.quit_chan <- 1
+}
+
+func (m *Monitor) Stop() {
+    m.quit_flag = true
+    if m.cli != nil {
+        m.cli.Close()
+    }
+    <- m.quit_chan
 }
 
 func NewMonitor(cli *redis.Redis, events string, channel string) *Monitor {
-    return &Monitor{cli, events, channel, 0}
+    return &Monitor{cli, events, channel, 0, false, make(chan int)}
 }
 

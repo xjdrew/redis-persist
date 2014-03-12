@@ -12,6 +12,9 @@ import (
 type Storer struct {
     cli *redis.Redis
     uql *unqlitego.Database
+    changes int
+    cur_changes int
+    quit_chan chan int
 }
 
 func (s *Storer) reconnect() {
@@ -36,16 +39,29 @@ func (s *Storer) reconnect() {
     }
 }
 
-func (s *Storer) recover(key string, err error) {
+func (s *Storer) retry(key string, err error) {
     log.Printf("recv message failed, try to reconnect to redis:%v", err)
     s.reconnect()
     s.save(key)
 }
 
+func (s *Storer) commit(diff int) {
+    s.cur_changes = s.cur_changes + diff
+    if s.cur_changes >= s.changes {
+        err := s.uql.Commit()
+        if err != nil {
+            log.Panicf("commit failed, changes:%d, err:%v", s.cur_changes, err)
+        } else {
+            log.Printf("commit succeed, changes:%d", s.cur_changes)
+        }
+        s.cur_changes = 0
+    }
+}
+
 func (s *Storer) save(key string) {
     name, err := s.cli.Type(key)
     if err != nil {
-        s.recover(key, err)
+        s.retry(key, err)
         return
     }
 
@@ -57,7 +73,7 @@ func (s *Storer) save(key string) {
     obj := make(map[string] string)
     err = s.cli.Hgetall(key, obj)
     if err != nil {
-        s.recover(key, err)
+        s.retry(key, err)
         return
     }
     
@@ -69,34 +85,39 @@ func (s *Storer) save(key string) {
     
     err = s.uql.Store([]byte(key), chunk)
     if err != nil { // seems bad, but still try to service
-        log.Printf("save key:%s failed, err:%v", key, err)
-    } else {
-        err = s.uql.Commit()
-    }
+        log.Panicf("save key:%s failed, err:%v", key, err)
+    } 
 
-    if err != nil {
-        log.Printf("commit key:%s failed, err:%v", key, err)
-    } else {
-        log.Printf("save key:%s, data len:%d", key, len(chunk))
-    }
+    log.Printf("save key:%s, data len:%d", key, len(chunk))
+    s.commit(1)
     return
 }
 
 func (s *Storer) Start(queue chan string) {
     err := s.cli.Connect()
     if err != nil {
-        log.Fatalf("start Storer failed:%v", err)
+        log.Panicf("start Storer failed:%v", err)
     }
     
     log.Print("start storer succeed")
 
     for {
-        key := <- queue
+        key,ok := <- queue
+        if !ok {
+            log.Print("queue is closed, storer will exit")
+            s.commit(s.changes)
+            break
+        }
         s.save(key)
     }
+    s.quit_chan <- 1
 }
 
-func NewStorer(cli *redis.Redis, uql *unqlitego.Database) *Storer {
-    return &Storer{cli, uql}
+func (s *Storer) Stop() {
+    <- s.quit_chan
+}
+
+func NewStorer(cli *redis.Redis, uql *unqlitego.Database, changes int) *Storer {
+    return &Storer{cli, uql, changes, 0, make(chan int)}
 }
 

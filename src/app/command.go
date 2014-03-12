@@ -11,8 +11,10 @@ import (
 type CmdHandler func(ud interface{}, args []string) (string, error)
 
 type CmdService struct {
+    ln net.Listener
     addr string
     handlers map[string] []interface{}
+    quit_chan chan int
 }
 
 func (c *CmdService) handleConnection(conn net.Conn) {
@@ -66,23 +68,32 @@ func (c *CmdService) Register(cmd string, ud interface{}, handler CmdHandler) {
 func (c *CmdService) Start() {
     ln, err := net.Listen("tcp", c.addr)
     if err != nil {
-        log.Fatalf("start manager failed:%v", err)
+        log.Panicf("start manager failed:%v", err)
     }
 
     log.Printf("start manager succeed:%s", c.addr)
     
+    c.ln = ln
     for {
-        conn, err := ln.Accept()
+        conn, err := c.ln.Accept()
         if err != nil {
             log.Printf("accept failed:%v", err)
-            continue
+            break
         }
         runtime.SetFinalizer(conn, (*net.TCPConn).Close)
         go c.handleConnection(conn)
     }
+    c.quit_chan <- 1
+}
+
+func (c *CmdService) Stop() {
+    if c.ln != nil {
+        c.ln.Close()
+    }
+    <- c.quit_chan
 }
 
 func NewCmdService(addr string) *CmdService {
-    return &CmdService{addr, make(map[string] []interface{})}
+    return &CmdService{nil, addr, make(map[string] []interface{}), make(chan int)}
 }
 

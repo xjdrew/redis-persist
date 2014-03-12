@@ -17,6 +17,10 @@ type Redis struct {
     conn net.Conn
 }
 
+var UnsupportedArgType = errors.New("unsupported arg type")
+var MalformedResponse  = errors.New("malformed response")
+var NoConnection       = errors.New("no connection")
+
 func composeMessage(cmd string, args []interface{}) ([] byte, error) {
     var buf bytes.Buffer
     fmt.Fprintf(&buf, "*%d\r\n", len(args) + 1)
@@ -28,7 +32,7 @@ func composeMessage(cmd string, args []interface{}) ([] byte, error) {
         } else if str, ok := arg.(int); ok {
             v = strconv.Itoa(str)
         } else {
-            return nil, errors.New("unsupported arg type")
+            return nil, UnsupportedArgType
         }
 
         fmt.Fprintf(&buf, "$%d\r\n%s\r\n", len(v), v)
@@ -100,13 +104,14 @@ func readResponse(reader *bufio.Reader) (interface{}, error) {
                     }
                     ret[i] = s
                 } else {
-                    // log.Fatal("unexpected response(*):" + nextline)
-                    return nil, errors.New("unexpected response(*):" + nextline)
+                    log.Printf("unexpected response(*): %s", nextline)
+                    return nil, MalformedResponse
                 }
             }
             return ret, nil
     }
-    return nil, errors.New("unexpected response():" + line)
+    log.Printf("unexpected response():%s", line)
+    return nil, MalformedResponse
 }
 
 // for pub/sub, don't call it directly
@@ -117,7 +122,7 @@ func (r *Redis) ReadResponse()(interface{}, error) {
 
 func (r *Redis) Exec(cmd string, args ... interface{}) (interface {}, error) {
     if r.conn == nil {
-        return nil, errors.New("no connection")
+        return nil, NoConnection
     }
 
     data,err := composeMessage(cmd, args) 
@@ -164,6 +169,7 @@ func (r *Redis) Connect() (err error) {
     if r.conn != nil {
         return
     }
+
     r.conn, err = net.Dial("tcp", r.addr)  
     if err != nil {
         return
@@ -180,11 +186,15 @@ func (r *Redis) Connect() (err error) {
     return
 }
 
-func (r *Redis) ReConnect() (err error) {
+func (r *Redis) Close() {
     if r.conn != nil {
         r.conn.Close()
         r.conn = nil
     }
+}
+
+func (r *Redis) ReConnect() error {
+    r.Close()
     return r.Connect()
 }
 

@@ -6,10 +6,20 @@ import (
     "bytes"
     "strconv"
     "errors"
+    "syscall"
 
     "encoding/json"
 )
 
+func shutdown(ud interface{}, args[] string) (str string, err error) {
+    context := ud.(*Context)
+
+    context.m.Stop()
+    context.s.Stop()
+    context.c.Stop()
+    context.quit_chan <- syscall.SIGUSR1
+    return
+}
 func count(ud interface{}, args[] string) (result string, err error) {
     context := ud.(*Context)
     x := 0
@@ -79,11 +89,13 @@ func diff(ud interface{}, args[] string) (result string, err error) {
 func (context *Context) Register(c *CmdService) {
     err := context.redis.Connect() 
     if err != nil {
-        log.Fatalf("register cmd service failed:%v", err)
+        log.Panicf("register cmd service failed:%v", err)
     }
 
     log.Printf("register command service")
-    c.Register("count", context, count)
+    // c.Register("count", context, count)
     c.Register("diff", context, diff)
+    c.Register("shutdown", context, shutdown)
+    defer shutdown(context, []string{})
 }
 
