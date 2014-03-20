@@ -10,15 +10,14 @@ import (
 
     "conf"
     "redis"
-    "unqlitego"
 )
 
 type Context struct {
-    uql *unqlitego.Database
+    db    *Leveldb
     redis *redis.Redis
-    m *Monitor
-    s *Storer
-    c *CmdService
+    m     *Monitor
+    s     *Storer
+    c     *CmdService
     quit_chan chan os.Signal
 }
 
@@ -65,26 +64,29 @@ func main() {
     m := NewMonitor(cli1, events, channel)
     
 
-    uql_file,_ := config.GetString("unqlite", "file")
-    changes,_  := config.GetInt("unqlite", "changes")
-
-    uql, err := unqlitego.NewDatabase(uql_file)
+    dbname,err := config.GetString("leveldb", "dbname")
     if err != nil {
-        log.Panicf("open unqlite db failed, file:%s, err:%v", uql_file, err)
+        log.Fatalf("get leveldb config failed:%v", err)
+    }
+
+    database := NewLeveldb()
+    err = database.Open(dbname)
+    if err != nil {
+        log.Panicf("open db failed, err:%v", err)
     } else {
-        log.Printf("open unqlite db succeed, file:%s", uql_file)
+        log.Printf("open db succeed, dbname:%v", dbname)
     } 
 
-    defer uql.Close()
+    defer database.Close()
 
     cli2 := redis.NewRedis(host, password, db)
-    s := NewStorer(cli2, uql, changes)
+    s := NewStorer(cli2, database)
     
     addr,_ := config.GetString("manager", "addr")
     c := NewCmdService(addr)
 
     cli3 := redis.NewRedis(host, password, db)
-    context := &Context{uql, cli3, m, s, c, make(chan os.Signal)}
+    context := &Context{database, cli3, m, s, c, make(chan os.Signal)}
     context.Register(c)
 
     signal.Notify(context.quit_chan, syscall.SIGINT, syscall.SIGTERM)

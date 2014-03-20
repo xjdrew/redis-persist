@@ -6,14 +6,11 @@ import (
     "encoding/json"
 
     "redis"
-    "unqlitego"
 )
 
 type Storer struct {
     cli *redis.Redis
-    uql *unqlitego.Database
-    changes int
-    cur_changes int
+    db  *Leveldb
     quit_chan chan int
 }
 
@@ -45,19 +42,6 @@ func (s *Storer) retry(key string, err error) {
     s.save(key)
 }
 
-func (s *Storer) commit(diff int) {
-    s.cur_changes = s.cur_changes + diff
-    if s.cur_changes >= s.changes {
-        err := s.uql.Commit()
-        if err != nil {
-            log.Panicf("commit failed, changes:%d, err:%v", s.cur_changes, err)
-        } else {
-            log.Printf("commit succeed, changes:%d", s.cur_changes)
-        }
-        s.cur_changes = 0
-    }
-}
-
 func (s *Storer) save(key string) {
     name, err := s.cli.Type(key)
     if err != nil {
@@ -83,13 +67,12 @@ func (s *Storer) save(key string) {
         return
     }
     
-    err = s.uql.Store([]byte(key), chunk)
+    err = s.db.Put([]byte(key), chunk)
     if err != nil { // seems bad, but still try to service
         log.Panicf("save key:%s failed, err:%v", key, err)
     } 
 
     log.Printf("save key:%s, data len:%d", key, len(chunk))
-    s.commit(1)
     return
 }
 
@@ -105,7 +88,6 @@ func (s *Storer) Start(queue chan string) {
         key,ok := <- queue
         if !ok {
             log.Print("queue is closed, storer will exit")
-            s.commit(s.changes)
             break
         }
         s.save(key)
@@ -117,7 +99,7 @@ func (s *Storer) Stop() {
     <- s.quit_chan
 }
 
-func NewStorer(cli *redis.Redis, uql *unqlitego.Database, changes int) *Storer {
-    return &Storer{cli, uql, changes, 0, make(chan int)}
+func NewStorer(cli *redis.Redis, db *Leveldb) *Storer {
+    return &Storer{cli, db, make(chan int)}
 }
 

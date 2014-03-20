@@ -1,3 +1,4 @@
 pkg/
 bin/
+redis1/
 *.uql

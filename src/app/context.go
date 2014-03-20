@@ -4,23 +4,25 @@ import (
     "log"
     "fmt"
     "bytes"
-    "strconv"
+    // "strconv"
     "errors"
     "syscall"
 
     "encoding/json"
 )
 
-func shutdown(ud interface{}, args[] string) (str string, err error) {
+func shutdown(ud interface{}, args[] string) (result string, err error) {
     context := ud.(*Context)
 
     context.m.Stop()
     context.s.Stop()
     context.c.Stop()
     context.quit_chan <- syscall.SIGUSR1
+    result = "done"
     return
 }
 func count(ud interface{}, args[] string) (result string, err error) {
+    /*
     context := ud.(*Context)
     x := 0
     
@@ -32,6 +34,7 @@ func count(ud interface{}, args[] string) (result string, err error) {
         x = x + 1
     }
     result = strconv.Itoa(x)
+    */
     return 
 }
 
@@ -45,7 +48,7 @@ func diff(ud interface{}, args[] string) (result string, err error) {
     context := ud.(*Context)
 
     cli := context.redis
-    uql := context.uql
+    db := context.db
     // query redis
     left := make(map[string] string)
     err = cli.Hgetall(key, left)
@@ -53,8 +56,8 @@ func diff(ud interface{}, args[] string) (result string, err error) {
         return
     }
 
-    chunk, err := uql.Fetch([]byte(key))
-    if err != nil {
+    chunk, err := db.Get([]byte(key))
+    if chunk == nil || err != nil {
         log.Printf("fetch data failed:%v", err)
         return
     }
@@ -96,6 +99,5 @@ func (context *Context) Register(c *CmdService) {
     // c.Register("count", context, count)
     c.Register("diff", context, diff)
     c.Register("shutdown", context, shutdown)
-    defer shutdown(context, []string{})
 }
 
