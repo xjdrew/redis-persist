@@ -38,6 +38,49 @@ func count(ud interface{}, args[] string) (result string, err error) {
     return 
 }
 
+func info(ud interface{}, args[] string) (result string, err error) {
+    context := ud.(*Context)
+    db := context.db
+
+    key := ""
+    if len(args) > 0 {
+        key = args[0]
+    }
+    result = db.Info(key)
+    return
+}
+
+func dump(ud interface{}, args[] string)(result string, err error) {
+    if len(args) == 0 {
+        err = errors.New("no key")
+        return
+    }
+
+    key := args[0]
+    context := ud.(*Context)
+    db := context.db
+
+    chunk, err := db.Get([]byte(key))
+    if chunk == nil || err != nil {
+        log.Printf("fetch data failed:%v", err)
+        return
+    }
+
+    data := make(map[string] string)
+    err = json.Unmarshal(chunk, &data)
+    if err != nil {
+        log.Printf("unmarshal chunk failed:%v", err)
+        return
+    }
+
+    buf := bytes.NewBufferString("content:\n")
+    for k,v := range data {
+        fmt.Fprintf(buf, " %s -> %s\n", k, v)
+    }
+    result = buf.String()
+    return
+}
+
 func diff(ud interface{}, args[] string) (result string, err error) {
     if len(args) == 0 {
         err = errors.New("no key")
@@ -65,6 +108,7 @@ func diff(ud interface{}, args[] string) (result string, err error) {
     right := make(map[string] string)
     err = json.Unmarshal(chunk, &right)
     if err != nil {
+        log.Printf("unmarshal chunk failed:%v", err)
         return
     }
 
@@ -97,6 +141,8 @@ func (context *Context) Register(c *CmdService) {
 
     log.Printf("register command service")
     // c.Register("count", context, count)
+    c.Register("info", context, info)
+    c.Register("dump", context, dump)
     c.Register("diff", context, diff)
     c.Register("shutdown", context, shutdown)
 }

@@ -29,6 +29,15 @@ func (self *Leveldb) Get(key []byte) ([]byte, error){
     return self.db.Get(self.roptions, key)
 }
 
+func (self *Leveldb) Info(key string) string {
+    property := "leveldb." + key
+    prop := self.db.PropertyValue(property)
+    if prop == "" {
+        return "invalid key:\n\tnum-files-at-level<N>\n\tstats\n\tsstables\n"
+    }
+    return prop
+}
+
 func (self *Leveldb) Close() {
     if self.db != nil {
         self.db.Close()

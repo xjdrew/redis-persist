@@ -68,7 +68,7 @@ func (s *Storer) save(key string) {
     }
     
     err = s.db.Put([]byte(key), chunk)
-    if err != nil { // seems bad, but still try to service
+    if err != nil { // seems bad, panic
         log.Panicf("save key:%s failed, err:%v", key, err)
     } 
 
@@ -84,14 +84,10 @@ func (s *Storer) Start(queue chan string) {
     
     log.Print("start storer succeed")
 
-    for {
-        key,ok := <- queue
-        if !ok {
-            log.Print("queue is closed, storer will exit")
-            break
-        }
+    for key := range queue {
         s.save(key)
     }
+    log.Print("queue is closed, storer will exit")
     s.quit_chan <- 1
 }
 
