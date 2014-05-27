@@ -13,7 +13,6 @@ import (
 
 func shutdown(ud interface{}, args[] string) (result string, err error) {
     context := ud.(*Context)
-
     context.m.Stop()
     context.s.Stop()
     context.c.Stop()
@@ -21,24 +20,8 @@ func shutdown(ud interface{}, args[] string) (result string, err error) {
     result = "done"
     return
 }
-func count(ud interface{}, args[] string) (result string, err error) {
-    /*
-    context := ud.(*Context)
-    x := 0
-    
-    cursor,err := context.uql.NewCursor()
-    if err != nil {
-        return
-    }
-    for err := cursor.First();err == nil; err = cursor.Next() {
-        x = x + 1
-    }
-    result = strconv.Itoa(x)
-    */
-    return 
-}
 
-func info(ud interface{}, args[] string) (result string, err error) {
+func info(ud interface{}, args[]string) (result string, err error) {
     context := ud.(*Context)
     db := context.db
 
@@ -50,7 +33,7 @@ func info(ud interface{}, args[] string) (result string, err error) {
     return
 }
 
-func dump(ud interface{}, args[] string)(result string, err error) {
+func dump(ud interface{}, args[]string)(result string, err error) {
     if len(args) == 0 {
         err = errors.New("no key")
         return
@@ -81,7 +64,7 @@ func dump(ud interface{}, args[] string)(result string, err error) {
     return
 }
 
-func diff(ud interface{}, args[] string) (result string, err error) {
+func diff(ud interface{}, args[]string) (result string, err error) {
     if len(args) == 0 {
         err = errors.New("no key")
         return
@@ -112,7 +95,6 @@ func diff(ud interface{}, args[] string) (result string, err error) {
         return
     }
 
-    
     buf := bytes.NewBufferString("left:redis, right:unqlite\n")
     for k,v1 := range left {
         if v2, ok := right[k];ok {
@@ -127,7 +109,7 @@ func diff(ud interface{}, args[] string) (result string, err error) {
     for k,_ := range right {
         if _, ok := left[k];!ok {
             fmt.Fprintf(buf, "%s, only in right\n", k)
-        } 
+        }
     }
     result = buf.String()
     return
@@ -140,7 +122,6 @@ func (context *Context) Register(c *CmdService) {
     }
 
     log.Printf("register command service")
-    // c.Register("count", context, count)
     c.Register("info", context, info)
     c.Register("dump", context, dump)
     c.Register("diff", context, diff)

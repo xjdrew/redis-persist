@@ -7,6 +7,7 @@ please refer to [leveldb build] (https://github.com/milaz/leveldb-build) for how
 ```
 source env.sh
 go install app
+if you can't build levigo, please clone it to src/levigo from github by hand.
 ```
 
 ## Test
@@ -18,5 +19,3 @@ go install app
 hset key1 v1 1
 rename key1 key2
 ```
-
-

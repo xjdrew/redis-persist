@@ -72,7 +72,7 @@ func (c *CmdService) Start() {
     }
 
     log.Printf("start manager succeed:%s", c.addr)
-    
+
     c.ln = ln
     for {
         conn, err := c.ln.Accept()
@@ -90,7 +90,7 @@ func (c *CmdService) Stop() {
     if c.ln != nil {
         c.ln.Close()
     }
-    <- c.quit_chan
+    <-c.quit_chan
 }
 
 func NewCmdService(addr string) *CmdService {

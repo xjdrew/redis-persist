@@ -30,7 +30,7 @@ func usage() {
 func main() {
     flag.Usage = usage
     flag.Parse()
-    
+
     args := flag.Args()
     if len(args) < 1 {
         fmt.Println("config file is missing.")
@@ -57,12 +57,12 @@ func main() {
     db,_ := config.GetInt("redis", "db")
     events,_ := config.GetString("redis", "events")
     channel,_ := config.GetString("redis", "channel")
-    
+
     queue := make(chan string, 1024)
-    
+
     cli1 := redis.NewRedis(host, password, db)
     m := NewMonitor(cli1, events, channel)
-    
+
 
     dbname,err := config.GetString("leveldb", "dbname")
     if err != nil {
@@ -75,13 +75,13 @@ func main() {
         log.Panicf("open db failed, err:%v", err)
     } else {
         log.Printf("open db succeed, dbname:%v", dbname)
-    } 
+    }
 
     defer database.Close()
 
     cli2 := redis.NewRedis(host, password, db)
     s := NewStorer(cli2, database)
-    
+
     addr,_ := config.GetString("manager", "addr")
     c := NewCmdService(addr)
 
@@ -94,7 +94,7 @@ func main() {
     go m.Start(queue)
     go s.Start(queue)
     go c.Start()
-    
+
     log.Println("start succeed")
     log.Printf("catch signal %v, program will exit",<- context.quit_chan)
 }
