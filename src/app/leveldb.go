@@ -52,6 +52,10 @@ func (self *Leveldb) Close() {
     }
 }
 
+func (self *Leveldb) NewIterator() *levigo.Iterator {
+    return self.db.NewIterator(self.roptions)
+}
+
 func NewLeveldb() *Leveldb{
     env := levigo.NewDefaultEnv()
 	options := levigo.NewOptions()

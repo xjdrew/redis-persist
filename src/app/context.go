@@ -4,10 +4,9 @@ import (
     "log"
     "fmt"
     "bytes"
-    // "strconv"
+    //"strconv"
     "errors"
     "syscall"
-
     "encoding/json"
 )
 
@@ -61,6 +60,45 @@ func dump(ud interface{}, args[]string)(result string, err error) {
         fmt.Fprintf(buf, " %s -> %s\n", k, v)
     }
     result = buf.String()
+    return
+}
+
+func zinc_iter(ud interface{}, args[]string) (result string, err error) {
+    context := ud.(*Context)
+    db := context.db
+    it := db.NewIterator()
+    it.SeekToFirst()
+    if !it.Valid() {
+        log.Printf("iterator should be valid")
+    }
+    defer it.Close()
+    for it = it; it.Valid(); it.Next() {
+        log.Printf("key:%v\n val:%v", string(it.Key()), string(it.Value()))
+    }
+    return
+}
+
+func zinc_read(ud interface{}, args[]string) (result string, err error){
+    if len(args) == 0 {
+        err = errors.New("no key")
+        return "", err
+    }
+    context := ud.(*Context)
+    key := args[0]
+    db := context.db
+    chunk, err := db.Get([]byte(key))
+    if chunk == nil || err != nil {
+        log.Printf("fetch data failed, key:%v, err:%v", key, err)
+        return
+    }
+    content := make(map[string] string)
+    err = json.Unmarshal(chunk, &content)
+    if err != nil {
+        log.Printf("unmarshal chunk failed:%v", err)
+        return
+    }
+    result = fmt.Sprintf("%v", content)
+    log.Printf("content:%v", content)
     return
 }
 
@@ -126,5 +164,7 @@ func (context *Context) Register(c *CmdService) {
     c.Register("dump", context, dump)
     c.Register("diff", context, diff)
     c.Register("shutdown", context, shutdown)
+    c.Register("zinc_read", context, zinc_read)
+    c.Register("zinc", context, zinc_iter)
 }
 
