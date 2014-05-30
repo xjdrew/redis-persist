@@ -89,13 +89,17 @@ func main() {
     context := &Context{database, cli3, m, s, c, make(chan os.Signal)}
     context.Register(c)
 
+    addr, _ = config.GetString("zinc", "addr")
+    zinc_agent := NewZincAgent(addr)
+
     signal.Notify(context.quit_chan, syscall.SIGINT, syscall.SIGTERM)
 
     go m.Start(queue)
     go s.Start(queue)
     go c.Start()
+    go zinc_agent.Start()
 
     log.Println("start succeed")
-    log.Printf("catch signal %v, program will exit",<- context.quit_chan)
+    log.Printf("catch signal %v, program will exit",<-context.quit_chan)
 }
 
