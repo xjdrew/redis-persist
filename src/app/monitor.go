@@ -21,7 +21,7 @@ func (m *Monitor) subscribe() error {
     if err != nil {
         return err
     }
-    
+
     _, err = m.cli.Exec("subscribe", m.channel)
     if err != nil {
         return err
@@ -46,7 +46,6 @@ func (m *Monitor) reconnect() {
             log.Printf("reconnect monitor failed:%v", err)
             continue
         }
-        
         err = m.subscribe()
         if err != nil {
             log.Printf("subscribe monitor failed:%v", err)
@@ -66,7 +65,6 @@ func (m *Monitor) Start(queue chan string) {
     if err != nil {
         log.Panicf("start monitor failed:%v", err)
     }
-    
     log.Print("start monitor succeed")
 
     for {
@@ -82,7 +80,6 @@ func (m *Monitor) Start(queue chan string) {
             m.reconnect()
             continue
         }
-        
         if data, ok := resp.([]string); ok {
             if len(data) != 3 || data[0] != "message" {
                 log.Printf("receive unexpected message, %v", data)

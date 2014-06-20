@@ -14,7 +14,7 @@ type ZincAgent struct {
     quit_chan chan int
 }
 
-func (agent *ZincAgent) Start() {
+func StartZincAgent(agent *ZincAgent) {
     rpc.Register(agent)
     tcpAddr, err := net.ResolveTCPAddr("tcp", agent.addr)
     if err != nil {
@@ -26,11 +26,13 @@ func (agent *ZincAgent) Start() {
         log.Printf("Error: %v", err)
         os.Exit(1)
     }
+    log.Printf("Start json rpc on %v", tcpAddr)
     for {
         conn, err := listener.Accept()
         if err != nil {
             continue
         }
+        log.Printf("New conn:%v", conn)
         jsonrpc.ServeConn(conn)
     }
 }

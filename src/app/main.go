@@ -97,7 +97,7 @@ func main() {
     go m.Start(queue)
     go s.Start(queue)
     go c.Start()
-    go zinc_agent.Start()
+    go StartZincAgent(zinc_agent)
 
     log.Println("start succeed")
     log.Printf("catch signal %v, program will exit",<-context.quit_chan)
