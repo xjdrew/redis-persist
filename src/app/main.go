@@ -90,7 +90,7 @@ func main() {
     context.Register(c)
 
     addr, _ = config.GetString("zinc", "addr")
-    zinc_agent := NewZincAgent(addr)
+    zinc_agent := NewZincAgent(addr, database)
 
     signal.Notify(context.quit_chan, syscall.SIGINT, syscall.SIGTERM)
 

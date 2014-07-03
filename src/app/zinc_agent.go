@@ -5,12 +5,13 @@ import (
     "log"
     "net"
     "net/rpc"
-    "net/rpc/jsonrpc"
+    "custom_jsonrpc"
 )
 
 type ZincAgent struct {
     listener net.Listener
     addr string
+    db  *Leveldb
     quit_chan chan int
 }
 
@@ -33,16 +34,17 @@ func StartZincAgent(agent *ZincAgent) {
             continue
         }
         log.Printf("New conn:%v", conn)
-        jsonrpc.ServeConn(conn)
+        go custom_jsonrpc.ServeConn(conn)
     }
 }
 
 func (agent *ZincAgent) Get(key *string, value *string) error {
     log.Printf("zinc agent get:%v", *key)
-    *value = *key
+    t, _ := agent.db.Get([]byte(*key))
+    *value = string(t)
     return nil
 }
 
-func NewZincAgent(addr string) *ZincAgent {
-    return &ZincAgent{nil, addr, make(chan int)}
+func NewZincAgent(addr string, db *Leveldb) *ZincAgent {
+    return &ZincAgent{nil, addr, db, make(chan int)}
 }

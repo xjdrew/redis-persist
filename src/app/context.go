@@ -91,7 +91,7 @@ func zinc_read(ud interface{}, args[]string) (result string, err error){
         log.Printf("fetch data failed, key:%v, err:%v", key, err)
         return
     }
-    content := make(map[string] string)
+    var content []string
     err = json.Unmarshal(chunk, &content)
     if err != nil {
         log.Printf("unmarshal chunk failed:%v", err)
