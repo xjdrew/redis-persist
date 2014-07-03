@@ -53,16 +53,15 @@ func (s *Storer) save(key string) {
         return
     }
 
-    obj := make(map[string] string)
-    err = s.cli.Hgetall(key, obj)
+    resp, err := s.cli.Hgetall_arr(key)
     if err != nil {
         s.retry(key, err)
         return
     }
 
-    chunk, err := json.Marshal(obj)
+    chunk, err := json.Marshal(resp)
     if err != nil {
-        log.Printf("marshal obj failed, key:%s, obj:%v, err:%v", key, obj, err)
+        log.Printf("marshal obj failed, key:%s, obj:%v, err:%v", key, resp, err)
         return
     }
 
