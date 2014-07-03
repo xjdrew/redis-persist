@@ -154,6 +154,16 @@ func (r* Redis) Hgetall(key string, obj map[string] string) (err error) {
     return
 }
 
+func (r* Redis) Hgetall_arr(key string) (resp []string, err error) {
+    t, err := r.Exec("hgetall", key)
+    if err != nil {
+        return 
+    }
+
+    resp = t.([]string)
+    return
+}
+
 func (r* Redis) Type(key string) (name string, err error) {
     resp, err := r.Exec("type", key)
     if err != nil {
