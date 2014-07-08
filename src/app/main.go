@@ -3,12 +3,13 @@ import (
     "log"
     "fmt"
     "io"
+    "io/ioutil"
+    "strconv"
     "os"
     "os/signal"
     "syscall"
     "flag"
-
-    "conf"
+    "encoding/json"
     "redis"
 )
 
@@ -27,6 +28,38 @@ func usage() {
     os.Exit(2)
 }
 
+type Redis struct {
+    Host string
+    Password string
+    Db string
+    Events string
+    Channel string
+}
+
+type LeveldbConfig struct {
+    Dbname string
+}
+
+type Manager struct {
+    Addr string
+}
+
+type Log struct {
+    File string
+}
+
+type Zinc struct {
+    Addr string
+}
+
+type Config struct {
+    Redis Redis
+    Leveldb LeveldbConfig
+    Manager Manager
+    Log Log
+    Zinc Zinc
+}
+
 func main() {
     flag.Usage = usage
     flag.Parse()
@@ -37,13 +70,25 @@ func main() {
         os.Exit(1)
     }
 
-    config, err := conf.ReadConfigFile(args[0])
+    var config Config
+    content, err := ioutil.ReadFile(args[1])
     if err != nil {
-        fmt.Fprintf(os.Stderr, "read config file failed:%s", err)
-        os.Exit(1)
+        panic(err)
     }
+    if err = json.Unmarshal([]byte(content), &config); err != nil {
+        panic(err)
+    }
+    logfile := config.Log.File
+    host := config.Redis.Host
+    password := config.Redis.Password
+    tdb,_ := strconv.ParseInt(config.Redis.Db, 0, 0)
+    db := int(tdb)
+    events := config.Redis.Events
+    channel := config.Redis.Channel
+    dbname := config.Leveldb.Dbname
+    manager_addr := config.Manager.Addr
+    zinc_addr := config.Zinc.Addr
 
-    logfile,_ := config.GetString("log", "file")
     fp,err := os.OpenFile(logfile, os.O_RDWR | os.O_APPEND | os.O_CREATE, 0666)
     if err != nil {
         fmt.Fprintf(os.Stderr, "open log file failed:%s", err)
@@ -52,22 +97,11 @@ func main() {
     defer fp.Close()
     log.SetOutput(io.MultiWriter(fp, os.Stderr))
 
-    host,_ := config.GetString("redis", "host")
-    password,_ := config.GetString("redis", "password")
-    db,_ := config.GetInt("redis", "db")
-    events,_ := config.GetString("redis", "events")
-    channel,_ := config.GetString("redis", "channel")
 
     queue := make(chan string, 1024)
 
     cli1 := redis.NewRedis(host, password, db)
     m := NewMonitor(cli1, events, channel)
-
-
-    dbname,err := config.GetString("leveldb", "dbname")
-    if err != nil {
-        log.Fatalf("get leveldb config failed:%v", err)
-    }
 
     database := NewLeveldb()
     err = database.Open(dbname)
@@ -76,21 +110,18 @@ func main() {
     } else {
         log.Printf("open db succeed, dbname:%v", dbname)
     }
-
     defer database.Close()
 
     cli2 := redis.NewRedis(host, password, db)
     s := NewStorer(cli2, database)
 
-    addr,_ := config.GetString("manager", "addr")
-    c := NewCmdService(addr)
+    c := NewCmdService(manager_addr)
 
     cli3 := redis.NewRedis(host, password, db)
     context := &Context{database, cli3, m, s, c, make(chan os.Signal)}
     context.Register(c)
 
-    addr, _ = config.GetString("zinc", "addr")
-    zinc_agent := NewZincAgent(addr, database)
+    zinc_agent := NewZincAgent(zinc_addr, database)
 
     signal.Notify(context.quit_chan, syscall.SIGINT, syscall.SIGTERM)
 
