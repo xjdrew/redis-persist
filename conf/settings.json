@@ -1,0 +1,21 @@
+{
+    "redis":{
+        "host":"127.0.0.1:6400",
+        "password":"foobared",
+        "db":"7",
+        "events":"gE",
+        "channel":"__keyevent@%d__:rename_to",
+    },
+    "leveldb":{
+        "dbname":"./redis_mirror",
+    },
+    "manager":{
+        "addr":"0.0.0.0:3580",
+    },
+    "log":{
+        "file":"/tmp/land1.log",
+    },
+    "zinc":{
+        "addr":"0.0.0.0:5200",
+    },
+}

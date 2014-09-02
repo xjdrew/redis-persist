@@ -18,7 +18,7 @@ func (self *Leveldb) Open(dbname string) (err error) {
     }
 
     self.db, err = levigo.Open(dbname, self.options)
-    return 
+    return
 }
 
 func (self *Leveldb) Put(key, value []byte) (err error){
@@ -52,6 +52,10 @@ func (self *Leveldb) Close() {
     }
 }
 
+func (self *Leveldb) NewIterator() *levigo.Iterator {
+    return self.db.NewIterator(self.roptions)
+}
+
 func NewLeveldb() *Leveldb{
     env := levigo.NewDefaultEnv()
 	options := levigo.NewOptions()
@@ -76,7 +80,7 @@ func NewLeveldb() *Leveldb{
     woptions := levigo.NewWriteOptions()
     woptions.SetSync(true)
     return &Leveldb{env,
-        options, 
+        options,
         roptions,
         woptions,
         nil}

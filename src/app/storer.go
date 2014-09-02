@@ -4,7 +4,6 @@ import (
     "log"
     "time"
     "encoding/json"
-
     "redis"
 )
 
@@ -54,23 +53,22 @@ func (s *Storer) save(key string) {
         return
     }
 
-    obj := make(map[string] string)
-    err = s.cli.Hgetall(key, obj)
+    resp, err := s.cli.Hgetall_arr(key)
     if err != nil {
         s.retry(key, err)
         return
     }
-    
-    chunk, err := json.Marshal(obj)
+
+    chunk, err := json.Marshal(resp)
     if err != nil {
-        log.Printf("marshal obj failed, key:%s, obj:%v, err:%v", key, obj, err)
+        log.Printf("marshal obj failed, key:%s, obj:%v, err:%v", key, resp, err)
         return
     }
-    
+
     err = s.db.Put([]byte(key), chunk)
     if err != nil { // seems bad, panic
         log.Panicf("save key:%s failed, err:%v", key, err)
-    } 
+    }
 
     log.Printf("save key:%s, data len:%d", key, len(chunk))
     return
@@ -81,7 +79,7 @@ func (s *Storer) Start(queue chan string) {
     if err != nil {
         log.Panicf("start Storer failed:%v", err)
     }
-    
+
     log.Print("start storer succeed")
 
     for key := range queue {
@@ -92,7 +90,7 @@ func (s *Storer) Start(queue chan string) {
 }
 
 func (s *Storer) Stop() {
-    <- s.quit_chan
+    <-s.quit_chan
 }
 
 func NewStorer(cli *redis.Redis, db *Leveldb) *Storer {
