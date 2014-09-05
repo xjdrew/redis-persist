@@ -18,19 +18,19 @@ type Monitor struct {
 }
 
 func (m *Monitor) subscribe() error {
-    config_key := "notify-keyspace-events"
+	config_key := "notify-keyspace-events"
 	_, err := m.cli.Exec("config", "set", config_key, m.notification_config)
 	if err != nil {
 		return err
 	}
-    log.Printf("config set %s = %s", config_key, m.notification_config)
+	log.Printf("config set %s = %s", config_key, m.notification_config)
 
 	_, err = m.cli.Exec("subscribe", m.event)
 	if err != nil {
 		return err
 	}
 
-    log.Printf("subscribe: %s", m.event)
+	log.Printf("subscribe: %s", m.event)
 	return nil
 }
 
@@ -121,4 +121,3 @@ func NewMonitor() *Monitor {
 	event := fmt.Sprintf("__keyevent@%d__:%s", setting.Redis.Db, setting.Redis.Event)
 	return &Monitor{cli, notification_config, event, 0, false, make(chan int)}
 }
-

@@ -13,12 +13,13 @@ import (
 )
 
 type Context struct {
-	db        *Leveldb
-	redis     *redis.Redis
-	m         *Monitor
-	s         *Storer
-	c         *CmdService
-	quit_chan chan bool
+	db         *Leveldb
+	redis      *redis.Redis
+	m          *Monitor
+	s          *Storer
+	c          *CmdService
+	quit_chan  chan bool
+	sync_queue chan string
 }
 
 type Redis struct {
@@ -109,17 +110,16 @@ func main() {
 	context.s = s
 	context.c = c
 	context.Register(c)
+	context.sync_queue = make(chan string, 1024)
 
 	zinc_agent := NewZincAgent(setting, database)
 
-	queue := make(chan string, 1024)
 	go handleSignal(context.quit_chan)
-	go m.Start(queue)
-	go s.Start(queue)
+	go m.Start(context.sync_queue)
+	go s.Start(context.sync_queue)
 	go c.Start()
 	go StartZincAgent(zinc_agent)
 
 	log.Println("start succeed")
 	log.Printf("catch signal %v, program will exit", <-context.quit_chan)
 }
-

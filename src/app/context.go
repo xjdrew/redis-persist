@@ -9,6 +9,16 @@ import (
 	"redis"
 )
 
+func help(ud interface{}, args []string) (result string, err error) {
+	context := ud.(*Context)
+	c := context.c
+
+	for cmd := range c.handlers {
+		result = result + cmd + "\n"
+	}
+	return
+}
+
 func shutdown(ud interface{}, args []string) (result string, err error) {
 	context := ud.(*Context)
 	context.m.Stop()
@@ -31,6 +41,18 @@ func info(ud interface{}, args []string) (result string, err error) {
 	return
 }
 
+func sync(ud interface{}, args []string) (result string, err error) {
+	context := ud.(*Context)
+	sync_queue := context.sync_queue
+
+	key := ""
+	if len(args) > 0 {
+		key = args[0]
+	}
+	sync_queue <- key
+	return
+}
+
 func dump(ud interface{}, args []string) (result string, err error) {
 	if len(args) == 0 {
 		err = errors.New("no key")
@@ -47,7 +69,8 @@ func dump(ud interface{}, args []string) (result string, err error) {
 		return
 	}
 
-	data := make(map[string]string)
+	log.Printf("data %s = %v", key, string(chunk))
+	var data []string
 	err = json.Unmarshal(chunk, &data)
 	if err != nil {
 		log.Printf("unmarshal chunk failed:%v", err)
@@ -55,8 +78,8 @@ func dump(ud interface{}, args []string) (result string, err error) {
 	}
 
 	buf := bytes.NewBufferString("content:\n")
-	for k, v := range data {
-		fmt.Fprintf(buf, " %s -> %s\n", k, v)
+	for _, k := range data {
+		fmt.Fprintf(buf, "%s\n", k)
 	}
 	result = buf.String()
 	return
@@ -159,7 +182,9 @@ func (context *Context) Register(c *CmdService) {
 	}
 
 	log.Printf("register command service")
+	c.Register("help", context, help)
 	c.Register("info", context, info)
+	c.Register("sync", context, sync)
 	c.Register("dump", context, dump)
 	c.Register("diff", context, diff)
 	c.Register("shutdown", context, shutdown)

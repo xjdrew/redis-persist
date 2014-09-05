@@ -5,13 +5,12 @@ import (
 	"io"
 	"log"
 	"os"
-    "runtime"
+	"runtime"
 )
 
-
 func finiLog(fp *os.File) {
-    fmt.Print("finilog\n")
-    fp.Close()
+	fmt.Print("finilog\n")
+	fp.Close()
 }
 
 func initLog() {
@@ -21,5 +20,5 @@ func initLog() {
 		os.Exit(1)
 	}
 	log.SetOutput(io.MultiWriter(fp, os.Stderr))
-    runtime.SetFinalizer(fp, finiLog)
+	runtime.SetFinalizer(fp, finiLog)
 }
