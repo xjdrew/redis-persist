@@ -53,6 +53,23 @@ func sync(ud interface{}, args []string) (result string, err error) {
 	return
 }
 
+func sync_all(ud interface{}, args []string) (result string, err error) {
+	context := ud.(*Context)
+	sync_queue := context.sync_queue
+
+	cli := context.redis
+	all_key_strings, err := cli.Exec("keys", "*")
+	if err != nil {
+		log.Panicf("sync_all cmd service failed:%v", err)
+	}
+	keys := all_key_strings.([]string)
+	for _, key := range keys {
+		log.Printf("sync:%v\n", key)
+		sync_queue <- key
+	}
+	return
+}
+
 func dump(ud interface{}, args []string) (result string, err error) {
 	if len(args) == 0 {
 		err = errors.New("no key")
@@ -97,30 +114,6 @@ func zinc_iter(ud interface{}, args []string) (result string, err error) {
 	for it = it; it.Valid(); it.Next() {
 		log.Printf("key:%v\n val:%v", string(it.Key()), string(it.Value()))
 	}
-	return
-}
-
-func zinc_read(ud interface{}, args []string) (result string, err error) {
-	if len(args) == 0 {
-		err = errors.New("no key")
-		return "", err
-	}
-	context := ud.(*Context)
-	key := args[0]
-	db := context.db
-	chunk, err := db.Get([]byte(key))
-	if chunk == nil || err != nil {
-		log.Printf("fetch data failed, key:%v, err:%v", key, err)
-		return
-	}
-	var content []string
-	err = json.Unmarshal(chunk, &content)
-	if err != nil {
-		log.Printf("unmarshal chunk failed:%v", err)
-		return
-	}
-	result = fmt.Sprintf("%v", content)
-	log.Printf("content:%v", content)
 	return
 }
 
@@ -198,11 +191,11 @@ func (context *Context) Register(c *CmdService) {
 	c.Register("help", context, help)
 	c.Register("info", context, info)
 	c.Register("sync", context, sync)
+	c.Register("sync_all", context, sync_all)
 	c.Register("dump", context, dump)
 	c.Register("diff", context, diff)
 	c.Register("shutdown", context, shutdown)
-	c.Register("zinc_read", context, zinc_read)
-	c.Register("zinc", context, zinc_iter)
+	c.Register("agent_iter", context, zinc_iter)
 }
 
 func NewContext() *Context {
