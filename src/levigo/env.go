@@ -1,6 +1,6 @@
 package levigo
 
-// #cgo LDFLAGS: -lleveldb
+// #cgo LDFLAGS: -lleveldb -lsnappy -lstdc++
 // #include "leveldb/c.h"
 import "C"
 

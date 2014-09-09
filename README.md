@@ -1,21 +1,21 @@
 ## env
 depend on leveldb, snappy, levigo
 
-please refer to [leveldb build] (https://github.com/milaz/leveldb-build) for how to build a snappy enabled leveldb
+please refer to [this blog] (http://xjdrew.github.io/blog/2014/09/09/build-static-leveldb-with-snappy/) for how to build a snappy enabled leveldb.
 
 ## Build
 ```
 source env.sh
 go install app
-if you can't build levigo, please clone it to src/levigo from github by hand.
 ```
 
 ## Test
 * start a redis-server listen on 127.0.0.1:6300
-* bin/app conf/settings.conf
+* bin/app conf/settings.json
 * use a redis client, run command as follow
 
 ```
 hset key1 v1 1
 rename key1 key2
 ```
+
