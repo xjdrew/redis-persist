@@ -148,14 +148,22 @@ func diff(ud interface{}, args []string) (result string, err error) {
 		return
 	}
 
-	right := make(map[string]string)
-	err = json.Unmarshal(chunk, &right)
+	var data []string
+	err = json.Unmarshal(chunk, &data)
 	if err != nil {
 		log.Printf("unmarshal chunk failed:%v", err)
 		return
 	}
 
-	buf := bytes.NewBufferString("left:redis, right:unqlite\n")
+	// convert arrary to map
+	right := make(map[string]string)
+	sz := len(data)
+	for i := 0; i < sz-1; i = i + 2 {
+		right[data[i]] = data[i+1]
+	}
+
+	buf := bytes.NewBufferString("left:redis, right:leveldb\n")
+	buf_len := buf.Len()
 	for k, v1 := range left {
 		if v2, ok := right[k]; ok {
 			if v1 != v2 {
@@ -171,6 +179,11 @@ func diff(ud interface{}, args []string) (result string, err error) {
 			fmt.Fprintf(buf, "%s, only in right\n", k)
 		}
 	}
+
+	if buf_len == buf.Len() {
+		fmt.Fprintf(buf, "perfect match\n")
+	}
+
 	result = buf.String()
 	return
 }
