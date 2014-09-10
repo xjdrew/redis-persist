@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"redis"
+    "strconv"
 )
 
 func help(ud interface{}, args []string) (result string, err error) {
@@ -103,7 +104,21 @@ func dump(ud interface{}, args []string) (result string, err error) {
 }
 
 func zinc_iter(ud interface{}, args []string) (result string, err error) {
-	context := ud.(*Context)
+    start := 0
+    end := 10
+    if len(args) > 0 {
+        start, err = strconv.Atoi(args[0])
+        if err != nil {
+            log.Println("iter start error:", err)
+            return
+        }
+        end, err = strconv.Atoi(args[1])
+        if err != nil {
+            log.Println("iter start error:", err)
+            return
+        }
+    }
+    context := ud.(*Context)
 	db := context.db
 	it := db.NewIterator()
 	it.SeekToFirst()
@@ -111,8 +126,12 @@ func zinc_iter(ud interface{}, args []string) (result string, err error) {
 		log.Printf("iterator should be valid")
 	}
 	defer it.Close()
-	for it = it; it.Valid(); it.Next() {
-		log.Printf("key:%v\n val:%v", string(it.Key()), string(it.Value()))
+    i := 0
+	for it = it; it.Valid(); it.Next(){
+        if start <= i && i <= end {
+            log.Printf("key:%v", string(it.Key()))
+        }
+        i++
 	}
 	return
 }
