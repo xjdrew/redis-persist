@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"redis"
+	"strconv"
 )
 
 func help(ud interface{}, args []string) (result string, err error) {
@@ -53,6 +54,23 @@ func sync(ud interface{}, args []string) (result string, err error) {
 	return
 }
 
+func sync_all(ud interface{}, args []string) (result string, err error) {
+	context := ud.(*Context)
+	sync_queue := context.sync_queue
+
+	cli := context.redis
+	all_key_strings, err := cli.Exec("keys", "*")
+	if err != nil {
+		log.Panicf("sync_all cmd service failed:%v", err)
+	}
+	keys := all_key_strings.([]string)
+	for _, key := range keys {
+		log.Printf("sync:%v\n", key)
+		sync_queue <- key
+	}
+	return
+}
+
 func dump(ud interface{}, args []string) (result string, err error) {
 	if len(args) == 0 {
 		err = errors.New("no key")
@@ -85,7 +103,25 @@ func dump(ud interface{}, args []string) (result string, err error) {
 	return
 }
 
-func zinc_iter(ud interface{}, args []string) (result string, err error) {
+func keys(ud interface{}, args []string) (result string, err error) {
+	start := 0
+	end := 10
+	if len(args) > 0 {
+		start, err = strconv.Atoi(args[0])
+		if err != nil {
+			log.Println("iter start error:", err)
+			return
+		}
+		if len(args) == 2 {
+			end, err = strconv.Atoi(args[1])
+			if err != nil {
+				log.Println("iter start error:", err)
+				return
+			}
+		} else {
+			end = 10 + start
+		}
+	}
 	context := ud.(*Context)
 	db := context.db
 	it := db.NewIterator()
@@ -94,33 +130,16 @@ func zinc_iter(ud interface{}, args []string) (result string, err error) {
 		log.Printf("iterator should be valid")
 	}
 	defer it.Close()
+	buf := bytes.NewBufferString("keys:\n")
+	i := 0
 	for it = it; it.Valid(); it.Next() {
-		log.Printf("key:%v\n val:%v", string(it.Key()), string(it.Value()))
+		if start <= i && i <= end {
+			//log.Printf("key:%v", string(it.Key()))
+			fmt.Fprintf(buf, "%s\n", string(it.Key()))
+		}
+		i++
 	}
-	return
-}
-
-func zinc_read(ud interface{}, args []string) (result string, err error) {
-	if len(args) == 0 {
-		err = errors.New("no key")
-		return "", err
-	}
-	context := ud.(*Context)
-	key := args[0]
-	db := context.db
-	chunk, err := db.Get([]byte(key))
-	if chunk == nil || err != nil {
-		log.Printf("fetch data failed, key:%v, err:%v", key, err)
-		return
-	}
-	var content []string
-	err = json.Unmarshal(chunk, &content)
-	if err != nil {
-		log.Printf("unmarshal chunk failed:%v", err)
-		return
-	}
-	result = fmt.Sprintf("%v", content)
-	log.Printf("content:%v", content)
+	result = buf.String()
 	return
 }
 
@@ -198,11 +217,11 @@ func (context *Context) Register(c *CmdService) {
 	c.Register("help", context, help)
 	c.Register("info", context, info)
 	c.Register("sync", context, sync)
+	c.Register("sync_all", context, sync_all)
 	c.Register("dump", context, dump)
 	c.Register("diff", context, diff)
 	c.Register("shutdown", context, shutdown)
-	c.Register("zinc_read", context, zinc_read)
-	c.Register("zinc", context, zinc_iter)
+	c.Register("keys", context, keys)
 }
 
 func NewContext() *Context {

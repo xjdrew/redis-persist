@@ -71,6 +71,7 @@ func (s *Storer) save(key string) {
 		return
 	}
 
+	//TODO add key to map
 	log.Printf("save key:%s, data len:%d", key, len(chunk))
 	return
 }
