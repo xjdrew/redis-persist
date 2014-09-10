@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"log"
 	"redis"
-    "strconv"
+	"strconv"
 )
 
 func help(ud interface{}, args []string) (result string, err error) {
@@ -103,22 +103,26 @@ func dump(ud interface{}, args []string) (result string, err error) {
 	return
 }
 
-func zinc_iter(ud interface{}, args []string) (result string, err error) {
-    start := 0
-    end := 10
-    if len(args) > 0 {
-        start, err = strconv.Atoi(args[0])
-        if err != nil {
-            log.Println("iter start error:", err)
-            return
-        }
-        end, err = strconv.Atoi(args[1])
-        if err != nil {
-            log.Println("iter start error:", err)
-            return
-        }
-    }
-    context := ud.(*Context)
+func keys(ud interface{}, args []string) (result string, err error) {
+	start := 0
+	end := 10
+	if len(args) > 0 {
+		start, err = strconv.Atoi(args[0])
+		if err != nil {
+			log.Println("iter start error:", err)
+			return
+		}
+		if len(args) == 2 {
+			end, err = strconv.Atoi(args[1])
+			if err != nil {
+				log.Println("iter start error:", err)
+				return
+			}
+		} else {
+			end = 10 + start
+		}
+	}
+	context := ud.(*Context)
 	db := context.db
 	it := db.NewIterator()
 	it.SeekToFirst()
@@ -126,13 +130,16 @@ func zinc_iter(ud interface{}, args []string) (result string, err error) {
 		log.Printf("iterator should be valid")
 	}
 	defer it.Close()
-    i := 0
-	for it = it; it.Valid(); it.Next(){
-        if start <= i && i <= end {
-            log.Printf("key:%v", string(it.Key()))
-        }
-        i++
+	buf := bytes.NewBufferString("keys:\n")
+	i := 0
+	for it = it; it.Valid(); it.Next() {
+		if start <= i && i <= end {
+			//log.Printf("key:%v", string(it.Key()))
+			fmt.Fprintf(buf, "%s\n", string(it.Key()))
+		}
+		i++
 	}
+	result = buf.String()
 	return
 }
 
@@ -214,7 +221,7 @@ func (context *Context) Register(c *CmdService) {
 	c.Register("dump", context, dump)
 	c.Register("diff", context, diff)
 	c.Register("shutdown", context, shutdown)
-	c.Register("agent_iter", context, zinc_iter)
+	c.Register("keys", context, keys)
 }
 
 func NewContext() *Context {
