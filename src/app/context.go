@@ -84,14 +84,10 @@ func count(ud interface{}, args []string) (result string, err error) {
 	context := ud.(*Context)
 	db := context.db
 	it := db.NewIterator()
-	it.SeekToFirst()
-	if !it.Valid() {
-		log.Printf("iterator should be valid")
-		return
-	}
 	defer it.Close()
+
 	i := 0
-	for it = it; it.Valid(); it.Next() {
+	for it.SeekToFirst(); it.Valid(); it.Next() {
 		i++
 	}
 	result = strconv.Itoa(i)
@@ -150,15 +146,11 @@ func keys(ud interface{}, args []string) (result string, err error) {
 	context := ud.(*Context)
 	db := context.db
 	it := db.NewIterator()
-	it.SeekToFirst()
-	if !it.Valid() {
-		log.Printf("iterator should be valid")
-		return
-	}
 	defer it.Close()
+
 	buf := bytes.NewBufferString("keys:\n")
 	i := 0
-	for it = it; it.Valid(); it.Next() {
+	for it.SeekToFirst(); it.Valid(); it.Next() {
 		if start <= i && i <= start+count {
 			//log.Printf("key:%v", string(it.Key()))
 			fmt.Fprintf(buf, "%s\n", string(it.Key()))

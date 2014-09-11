@@ -77,7 +77,7 @@ func NewLeveldb(name string) *Leveldb {
 	options.SetWriteBufferSize(128 << 20)
 	options.SetMaxOpenFiles(2000)
 	options.SetBlockSize(4 * 1024)
-	options.SetBlockRestartInterval(8)
+	options.SetBlockRestartInterval(16)
 	options.SetCompression(levigo.SnappyCompression)
 
 	roptions := levigo.NewReadOptions()
