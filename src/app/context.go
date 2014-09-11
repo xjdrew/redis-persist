@@ -103,6 +103,8 @@ func check(ud interface{}, args []string) (result string, err error) {
 	var leveldb_data []string
 	count := 0
 	mismatch_count := 0
+	all_key_strings, err := cli.Exec("keys", "*")
+	redis_key_count := len(all_key_strings.([]string))
 	for it.SeekToFirst(); it.Valid(); it.Next() {
 		if json_err := json.Unmarshal(it.Value(), &leveldb_data); json_err != nil {
 			log.Printf("json unmarshal err:%v", json_err)
@@ -112,6 +114,10 @@ func check(ud interface{}, args []string) (result string, err error) {
 		if err_redis != nil {
 			log.Printf("redis err:%v", err_redis)
 		}
+        if redis_data == nil {
+            log.Printf("key mismatch:%v", it.Key())
+            continue
+        }
 		for i, redis_section := range redis_data {
 			if redis_section != leveldb_data[i] {
 				log.Printf("key mismatch:%v", it.Key())
@@ -122,6 +128,14 @@ func check(ud interface{}, args []string) (result string, err error) {
 		count++
 	}
 	result = fmt.Sprintf("%d counts, %d keys mismatch\n", count, mismatch_count)
+    switch {
+        case count > redis_key_count:
+            result = fmt.Sprintf("%sredis key amount is less than leveldb:%d vs %d", result, redis_key_count, count)
+        case count > redis_key_count:
+            result = fmt.Sprintf("%sredis key amount is larger than leveldb:%d vs %d", result, redis_key_count, count)
+        default:
+            result = fmt.Sprintf("%skey amount match, perfect!")
+    }
 	return
 }
 
