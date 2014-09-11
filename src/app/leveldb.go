@@ -34,7 +34,7 @@ func (self *Leveldb) Info(key string) string {
 	property := "leveldb." + key
 	prop := self.db.PropertyValue(property)
 	if prop == "" {
-		return "invalid key:\n\tnum-files-at-level<N>\n\tstats\n\tsstables\n"
+		return "valid key:\n\tnum-files-at-level<N>\n\tstats\n\tsstables\n"
 	}
 	return prop
 }
@@ -79,6 +79,10 @@ func NewLeveldb(name string) *Leveldb {
 	options.SetBlockSize(4 * 1024)
 	options.SetBlockRestartInterval(16)
 	options.SetCompression(levigo.SnappyCompression)
+
+	// set filter
+	filter := levigo.NewBloomFilter(10)
+	options.SetFilterPolicy(filter)
 
 	roptions := levigo.NewReadOptions()
 	roptions.SetVerifyChecksums(true)
