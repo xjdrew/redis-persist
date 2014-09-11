@@ -134,7 +134,7 @@ func check(ud interface{}, args []string) (result string, err error) {
         case count > redis_key_count:
             result = fmt.Sprintf("%sredis key amount is larger than leveldb:%d vs %d", result, redis_key_count, count)
         default:
-            result = fmt.Sprintf("%skey amount match, perfect!")
+            result = fmt.Sprintf("%d key amount match, perfect!", count)
     }
 	return
 }
