@@ -94,6 +94,37 @@ func count(ud interface{}, args []string) (result string, err error) {
 	return
 }
 
+func check(ud interface{}, args []string) (result string, err error) {
+	context := ud.(*Context)
+	db := context.db
+	cli := context.redis
+	it := db.NewIterator()
+	defer it.Close()
+	var leveldb_data []string
+	count := 0
+	mismatch_count := 0
+	for it.SeekToFirst(); it.Valid(); it.Next() {
+		if json_err := json.Unmarshal(it.Value(), &leveldb_data); json_err != nil {
+			log.Printf("json unmarshal err:%v", json_err)
+			log.Printf("it.Value():%v", it.Value())
+		}
+		redis_data, err_redis := cli.Hgetall_arr(string(it.Key()))
+		if err_redis != nil {
+			log.Printf("redis err:%v", err_redis)
+		}
+		for i, redis_section := range redis_data {
+			if redis_section != leveldb_data[i] {
+				log.Printf("key mismatch:%v", it.Key())
+				mismatch_count++
+				break
+			}
+		}
+		count++
+	}
+	result = fmt.Sprintf("%d counts, %d keys mismatch\n", count, mismatch_count)
+	return
+}
+
 func dump(ud interface{}, args []string) (result string, err error) {
 	if len(args) == 0 {
 		err = errors.New("no key")
@@ -241,6 +272,7 @@ func (context *Context) Register(c *CmdService) {
 	c.Register("diff", context, diff)
 	c.Register("shutdown", context, shutdown)
 	c.Register("keys", context, keys)
+	c.Register("check", context, check)
 }
 
 func NewContext() *Context {
