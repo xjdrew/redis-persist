@@ -80,6 +80,24 @@ func sync_all(ud interface{}, args []string) (result string, err error) {
 	return
 }
 
+func count(ud interface{}, args []string) (result string, err error) {
+	context := ud.(*Context)
+	db := context.db
+	it := db.NewIterator()
+	it.SeekToFirst()
+	if !it.Valid() {
+		log.Printf("iterator should be valid")
+		return
+	}
+	defer it.Close()
+	i := 0
+	for it = it; it.Valid(); it.Next() {
+		i++
+	}
+	result = strconv.Itoa(i)
+	return
+}
+
 func dump(ud interface{}, args []string) (result string, err error) {
 	if len(args) == 0 {
 		err = errors.New("no key")
@@ -227,6 +245,7 @@ func (context *Context) Register(c *CmdService) {
 	c.Register("sync", context, sync)
 	c.Register("sync_all", context, sync_all)
 	c.Register("dump", context, dump)
+	c.Register("count", context, count)
 	c.Register("diff", context, diff)
 	c.Register("shutdown", context, shutdown)
 	c.Register("keys", context, keys)
