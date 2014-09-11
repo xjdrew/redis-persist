@@ -61,13 +61,22 @@ func sync_all(ud interface{}, args []string) (result string, err error) {
 	cli := context.redis
 	all_key_strings, err := cli.Exec("keys", "*")
 	if err != nil {
-		log.Panicf("sync_all cmd service failed:%v", err)
+		log.Printf("sync_all cmd service failed:%v", err)
+		return
 	}
 	keys := all_key_strings.([]string)
+	sz := len(keys)
+	cur := 0
 	for _, key := range keys {
 		log.Printf("sync:%v\n", key)
 		sync_queue <- key
+		cur += 1
+		if cur%100 == 0 {
+			log.Printf("sync progress: %d/%d", cur, sz)
+		}
 	}
+	log.Printf("sync finish: %d/%d", cur, sz)
+	result = strconv.Itoa(sz)
 	return
 }
 
@@ -87,7 +96,7 @@ func dump(ud interface{}, args []string) (result string, err error) {
 		return
 	}
 
-	log.Printf("data %s = %v", key, string(chunk))
+	log.Printf("dump key:%s(%d)", key, len(chunk))
 	var data []string
 	err = json.Unmarshal(chunk, &data)
 	if err != nil {
@@ -105,35 +114,34 @@ func dump(ud interface{}, args []string) (result string, err error) {
 
 func keys(ud interface{}, args []string) (result string, err error) {
 	start := 0
-	end := 10
+	count := 10
 	if len(args) > 0 {
-		start, err = strconv.Atoi(args[0])
-		if err != nil {
+		if start, err = strconv.Atoi(args[0]); err != nil {
 			log.Println("iter start error:", err)
 			return
 		}
-		if len(args) == 2 {
-			end, err = strconv.Atoi(args[1])
-			if err != nil {
-				log.Println("iter start error:", err)
-				return
-			}
-		} else {
-			end = 10 + start
+	}
+
+	if len(args) > 1 {
+		if count, err = strconv.Atoi(args[1]); err != nil {
+			log.Println("iter start error:", err)
+			return
 		}
 	}
+
 	context := ud.(*Context)
 	db := context.db
 	it := db.NewIterator()
 	it.SeekToFirst()
 	if !it.Valid() {
 		log.Printf("iterator should be valid")
+		return
 	}
 	defer it.Close()
 	buf := bytes.NewBufferString("keys:\n")
 	i := 0
 	for it = it; it.Valid(); it.Next() {
-		if start <= i && i <= end {
+		if start <= i && i <= start+count {
 			//log.Printf("key:%v", string(it.Key()))
 			fmt.Fprintf(buf, "%s\n", string(it.Key()))
 		}

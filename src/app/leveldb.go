@@ -58,17 +58,23 @@ func (self *Leveldb) NewIterator() *levigo.Iterator {
 }
 
 func NewLeveldb(name string) *Leveldb {
-	env := levigo.NewDefaultEnv()
 	options := levigo.NewOptions()
 
 	// options.SetComparator(cmp)
 	options.SetCreateIfMissing(true)
 	options.SetErrorIfExists(false)
-	// options.SetCache(cache)
+
+	// set env
+	env := levigo.NewDefaultEnv()
 	options.SetEnv(env)
+
+	// set cache
+	cache := levigo.NewLRUCache(16 << 20)
+	options.SetCache(cache)
+
 	options.SetInfoLog(nil)
-	options.SetWriteBufferSize(8 << 20)
-	options.SetParanoidChecks(true)
+	options.SetParanoidChecks(false)
+	options.SetWriteBufferSize(128 << 20)
 	options.SetMaxOpenFiles(2000)
 	options.SetBlockSize(4 * 1024)
 	options.SetBlockRestartInterval(8)
@@ -79,7 +85,8 @@ func NewLeveldb(name string) *Leveldb {
 	roptions.SetFillCache(false)
 
 	woptions := levigo.NewWriteOptions()
-	woptions.SetSync(true)
+	// set sync false
+	woptions.SetSync(false)
 
 	db := &Leveldb{env,
 		options,

@@ -1,13 +1,13 @@
 {
     "redis":{
-        "host":"127.0.0.1:6400",
+        "host":"172.16.100.205:3536",
         "password":"foobared",
-        "db":0,
+        "db":2,
         "event":"rename_to"
     },
 
     "leveldb":{
-        "dbname":"./data/redis_mirror"
+        "dbname":"./data/redis6"
     },
 
     "manager":{
