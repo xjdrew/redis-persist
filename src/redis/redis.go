@@ -138,6 +138,15 @@ func (r *Redis) Exec(cmd string, args ...interface{}) (interface{}, error) {
 	return readResponse(reader)
 }
 
+func (r *Redis) Hget(key string, subkey string) (resp string, err error) {
+    result, err := r.Exec("hget", key, subkey)
+	if err != nil {
+		return
+	}
+    resp = result.(string)
+	return
+}
+
 func (r *Redis) Hgetall(key string, obj map[string]string) (err error) {
 	resp, err := r.Exec("hgetall", key)
 	if err != nil {
