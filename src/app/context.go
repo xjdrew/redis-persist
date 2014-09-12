@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"log"
 	"redis"
+	"sort"
 	"strconv"
+	"time"
 )
 
 func help(ud interface{}, args []string) (result string, err error) {
@@ -91,6 +93,111 @@ func count(ud interface{}, args []string) (result string, err error) {
 		i++
 	}
 	result = strconv.Itoa(i)
+	return
+}
+
+func fast_check(ud interface{}, args []string) (result string, err error) {
+	begin_timestamp := time.Now()
+	context := ud.(*Context)
+	db := context.db
+	cli := context.redis
+	it := db.NewIterator()
+	defer it.Close()
+	var leveldb_data []string
+	count := 0
+	mismatch_count := 0
+	all_key_strings, err := cli.Exec("keys", "*")
+	redis_key_count := len(all_key_strings.([]string))
+	for it.SeekToFirst(); it.Valid(); it.Next() {
+		redis_version, err_redis := cli.Hget(string(it.Key()), "version")
+		if err_redis != nil {
+			log.Printf("redis err:%v", err_redis)
+			return
+		}
+		if json_err := json.Unmarshal(it.Value(), &leveldb_data); json_err != nil {
+			log.Printf("json unmarshal err:%v", json_err)
+			log.Printf("it.Key:%v", string(it.Key()))
+		}
+		sz := len(leveldb_data)
+		for i := 0; i < sz-1; i = i + 2 {
+			if leveldb_data[i] == "version" {
+				if redis_version != leveldb_data[i+1] {
+					mismatch_count++
+					log.Printf("key mismatch:%s", string(it.Key()))
+				}
+				break
+			}
+		}
+		count++
+		if count%1000 == 0 {
+			log.Printf("progress:%d/%d\n", count, redis_key_count)
+		}
+	}
+	end_timestamp := time.Now()
+	diff := end_timestamp.Sub(begin_timestamp)
+	result = fmt.Sprintf("%d counts, %d keys mismatch in %d seconds\n", count, mismatch_count, diff.Seconds())
+	switch {
+	case count > redis_key_count:
+		result = fmt.Sprintf("%sredis key amount is less than leveldb:%d vs %d", result, redis_key_count, count)
+	case count > redis_key_count:
+		result = fmt.Sprintf("%sredis key amount is larger than leveldb:%d vs %d", result, redis_key_count, count)
+	default:
+		result = fmt.Sprintf("%d key amount match, perfect!", count)
+	}
+	return
+
+}
+
+func sort_and_comp(ud interface{}, args []string) (result string, err error) {
+	begin_timestamp := time.Now()
+	context := ud.(*Context)
+	db := context.db
+	cli := context.redis
+	it := db.NewIterator()
+	defer it.Close()
+	var leveldb_data []string
+	count := 0
+	mismatch_count := 0
+	all_key_strings, err := cli.Exec("keys", "*")
+	redis_key_count := len(all_key_strings.([]string))
+	for it.SeekToFirst(); it.Valid(); it.Next() {
+		if json_err := json.Unmarshal(it.Value(), &leveldb_data); json_err != nil {
+			log.Printf("json unmarshal err:%v", json_err)
+			log.Printf("it.Key:%v", string(it.Key()))
+		}
+		redis_data, err_redis := cli.Hgetall_arr(string(it.Key()))
+		if err_redis != nil {
+			log.Printf("redis err:%v", err_redis)
+			return
+		}
+		sort.Strings(redis_data)
+		sort.Strings(leveldb_data)
+		if len(redis_data) != len(leveldb_data) {
+			mismatch_count++
+		} else {
+			for i, redis_val := range redis_data {
+				if redis_val != leveldb_data[i] {
+					mismatch_count++
+					break
+				}
+			}
+		}
+		count++
+		if count%1000 == 0 {
+			log.Printf("progress:%d/%d\n", count, redis_key_count)
+		}
+	}
+	end_timestamp := time.Now()
+	diff := end_timestamp.Sub(begin_timestamp)
+	result = fmt.Sprintf("%d counts, %d keys mismatch in %d seconds\n", count, mismatch_count, diff.Seconds())
+	switch {
+	case count > redis_key_count:
+		result = fmt.Sprintf("%sredis key amount is less than leveldb:%d vs %d", result, redis_key_count, count)
+	case count > redis_key_count:
+		result = fmt.Sprintf("%sredis key amount is larger than leveldb:%d vs %d", result, redis_key_count, count)
+	default:
+		result = fmt.Sprintf("%d key amount match in %d seconds, perfect!", count, diff.Seconds())
+	}
 	return
 }
 
@@ -192,7 +299,7 @@ func diff(ud interface{}, args []string) (result string, err error) {
 		return
 	}
 
-	// convert arrary to map
+	// convert array to map
 	right := make(map[string]string)
 	sz := len(data)
 	for i := 0; i < sz-1; i = i + 2 {
@@ -241,6 +348,8 @@ func (context *Context) Register(c *CmdService) {
 	c.Register("diff", context, diff)
 	c.Register("shutdown", context, shutdown)
 	c.Register("keys", context, keys)
+	c.Register("fast_check", context, fast_check)
+	c.Register("sort_and_comp", context, sort_and_comp)
 }
 
 func NewContext() *Context {
