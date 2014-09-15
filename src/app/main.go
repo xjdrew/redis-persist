@@ -16,7 +16,7 @@ type Context struct {
 	db         *Leveldb
 	redis      *redis.Redis
 	m          *Monitor
-	s          *Storer
+	s          *StorerMgr
 	c          *CmdService
 	quit_chan  chan bool
 	sync_queue chan string
@@ -101,7 +101,7 @@ func main() {
 	defer database.Close()
 
 	m := NewMonitor()
-	s := NewStorer(database)
+	s := NewStorerMgr(database, 5)
 	c := NewCmdService()
 
 	context := NewContext()
@@ -110,7 +110,7 @@ func main() {
 	context.s = s
 	context.c = c
 	context.Register(c)
-	context.sync_queue = make(chan string, 1024)
+	context.sync_queue = make(chan string, 4096)
 
 	zinc_agent := NewZincAgent(setting, database)
 

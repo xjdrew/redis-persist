@@ -3,14 +3,15 @@ package main
 import (
 	"encoding/json"
 	"log"
-	"redis"
+	"sync"
 	"time"
+
+	"redis"
 )
 
 type Storer struct {
-	cli       *redis.Redis
-	db        *Leveldb
-	quit_chan chan int
+	cli *redis.Redis
+	db  *Leveldb
 }
 
 func (s *Storer) reconnect() {
@@ -66,17 +67,16 @@ func (s *Storer) save(key string) {
 	}
 
 	err = s.db.Put([]byte(key), chunk)
-	if err != nil { // seems bad, panic
+	if err != nil {
 		log.Printf("save key:%s failed, err:%v", key, err)
 		return
 	}
 
-	//TODO add key to map
 	log.Printf("save key:%s, data len:%d", key, len(chunk))
 	return
 }
 
-func (s *Storer) Start(queue chan string) {
+func (s *Storer) Start(queue chan string, wg sync.WaitGroup) {
 	err := s.cli.Connect()
 	if err != nil {
 		log.Panicf("start Storer failed:%v", err)
@@ -88,14 +88,35 @@ func (s *Storer) Start(queue chan string) {
 		s.save(key)
 	}
 	log.Print("queue is closed, storer will exit")
-	s.quit_chan <- 1
-}
-
-func (s *Storer) Stop() {
-	<-s.quit_chan
+	wg.Done()
 }
 
 func NewStorer(db *Leveldb) *Storer {
 	cli := redis.NewRedis(setting.Redis.Host, setting.Redis.Password, setting.Redis.Db)
-	return &Storer{cli, db, make(chan int)}
+	return &Storer{cli, db}
+}
+
+type StorerMgr struct {
+	instances []*Storer
+	wg        sync.WaitGroup
+}
+
+func (m *StorerMgr) Start(queue chan string) {
+	for _, instance := range m.instances {
+		m.wg.Add(1)
+		go instance.Start(queue, m.wg)
+	}
+}
+
+func (m *StorerMgr) Stop() {
+	m.wg.Wait()
+}
+
+func NewStorerMgr(db *Leveldb, numInstances int) *StorerMgr {
+	m := new(StorerMgr)
+	m.instances = make([]*Storer, numInstances)
+	for i := 0; i < numInstances; i++ {
+		m.instances[i] = NewStorer(db)
+	}
+	return m
 }

@@ -44,7 +44,7 @@ func info(ud interface{}, args []string) (result string, err error) {
 	return
 }
 
-func sync(ud interface{}, args []string) (result string, err error) {
+func sync_one(ud interface{}, args []string) (result string, err error) {
 	context := ud.(*Context)
 	sync_queue := context.sync_queue
 
@@ -67,14 +67,14 @@ func sync_all(ud interface{}, args []string) (result string, err error) {
 		return
 	}
 	keys := all_key_strings.([]string)
+	sort.Strings(keys)
 	sz := len(keys)
 	cur := 0
 	for _, key := range keys {
-		log.Printf("sync:%v\n", key)
 		sync_queue <- key
 		cur += 1
 		if cur%100 == 0 {
-			log.Printf("sync progress: %d/%d", cur, sz)
+			log.Printf("sync progress: %d/%d, queue:%d", cur, sz, len(sync_queue))
 		}
 	}
 	log.Printf("sync finish: %d/%d", cur, sz)
@@ -341,7 +341,7 @@ func (context *Context) Register(c *CmdService) {
 	log.Printf("register command service")
 	c.Register("help", context, help)
 	c.Register("info", context, info)
-	c.Register("sync", context, sync)
+	c.Register("sync", context, sync_one)
 	c.Register("sync_all", context, sync_all)
 	c.Register("dump", context, dump)
 	c.Register("count", context, count)
