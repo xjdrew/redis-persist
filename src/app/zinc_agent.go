@@ -31,6 +31,7 @@ func StartZincAgent(agent *ZincAgent) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
+            log.Printf(err)
 			continue
 		}
 		log.Printf("New conn:%v", conn)
@@ -40,7 +41,11 @@ func StartZincAgent(agent *ZincAgent) {
 
 func (agent *ZincAgent) Get(key *string, value *string) error {
 	log.Printf("zinc agent get:%v", *key)
-	t, _ := agent.db.Get([]byte(*key))
+	t, err := agent.db.Get([]byte(*key))
+    if err != nil {
+        log.Printf(err)
+        return err
+    }
 	*value = string(t)
 	return nil
 }
