@@ -20,6 +20,11 @@ type CmdService struct {
 func (c *CmdService) handleConnection(conn net.Conn) {
 	defer conn.Close()
 	defer c.wg.Done()
+	defer func() {
+		if err := recover(); err != nil {
+			log.Printf("handle connection:%v failed:%v", conn.RemoteAddr(), err)
+		}
+	}()
 
 	log.Printf("handle conn:%v", conn)
 	reader := bufio.NewReader(conn)
