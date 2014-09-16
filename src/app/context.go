@@ -23,10 +23,20 @@ func help(ud interface{}, args []string) (result string, err error) {
 }
 
 func shutdown(ud interface{}, args []string) (result string, err error) {
+	passwd := ""
+	if len(args) > 0 {
+		passwd = args[0]
+	}
+
+	if passwd != "confirm" {
+		err = errors.New("wrong password")
+		return
+	}
+
 	context := ud.(*Context)
+	context.c.Stop()
 	context.m.Stop()
 	context.s.Stop()
-	context.c.Stop()
 	context.quit_chan <- true
 	result = "done"
 	return

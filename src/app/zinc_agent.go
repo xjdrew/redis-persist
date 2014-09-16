@@ -9,10 +9,9 @@ import (
 )
 
 type ZincAgent struct {
-	listener  net.Listener
-	addr      string
-	db        *Leveldb
-	quit_chan chan int
+	listener net.Listener
+	addr     string
+	db       *Leveldb
 }
 
 func StartZincAgent(agent *ZincAgent) {
@@ -31,7 +30,7 @@ func StartZincAgent(agent *ZincAgent) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Printf(err)
+			log.Printf("accept conn failed:%v", err)
 			continue
 		}
 		log.Printf("New conn:%v", conn)
@@ -43,7 +42,7 @@ func (agent *ZincAgent) Get(key *string, value *string) error {
 	log.Printf("zinc agent get:%v", *key)
 	t, err := agent.db.Get([]byte(*key))
 	if err != nil {
-		log.Printf(err)
+		log.Printf("query key:%s failed:%s", key, err)
 		return err
 	}
 	*value = string(t)
@@ -51,5 +50,5 @@ func (agent *ZincAgent) Get(key *string, value *string) error {
 }
 
 func NewZincAgent(setting Setting, db *Leveldb) *ZincAgent {
-	return &ZincAgent{nil, setting.Zinc.Addr, db, make(chan int)}
+	return &ZincAgent{nil, setting.Zinc.Addr, db}
 }

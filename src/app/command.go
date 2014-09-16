@@ -4,20 +4,23 @@ import (
 	"bufio"
 	"log"
 	"net"
-	"runtime"
 	"strings"
+	"sync"
 )
 
 type CmdHandler func(ud interface{}, args []string) (string, error)
 
 type CmdService struct {
-	ln        net.Listener
-	addr      string
-	handlers  map[string][]interface{}
-	quit_chan chan int
+	ln       net.Listener
+	addr     string
+	handlers map[string][]interface{}
+	wg       sync.WaitGroup
 }
 
 func (c *CmdService) handleConnection(conn net.Conn) {
+	defer conn.Close()
+	defer c.wg.Done()
+
 	log.Printf("handle conn:%v", conn)
 	reader := bufio.NewReader(conn)
 	for {
@@ -66,6 +69,9 @@ func (c *CmdService) Register(cmd string, ud interface{}, handler CmdHandler) {
 }
 
 func (c *CmdService) Start() {
+	// no need add one, save one for the last connection
+	defer c.wg.Done()
+
 	ln, err := net.Listen("tcp", c.addr)
 	if err != nil {
 		log.Panicf("start manager failed:%v", err)
@@ -80,19 +86,21 @@ func (c *CmdService) Start() {
 			log.Printf("accept failed:%v", err)
 			break
 		}
-		runtime.SetFinalizer(conn, (*net.TCPConn).Close)
+		c.wg.Add(1)
 		go c.handleConnection(conn)
 	}
-	c.quit_chan <- 1
 }
 
 func (c *CmdService) Stop() {
 	if c.ln != nil {
 		c.ln.Close()
 	}
-	<-c.quit_chan
+	c.wg.Wait()
 }
 
 func NewCmdService() *CmdService {
-	return &CmdService{nil, setting.Manager.Addr, make(map[string][]interface{}), make(chan int)}
+	cmdService := new(CmdService)
+	cmdService.addr = setting.Manager.Addr
+	cmdService.handlers = make(map[string][]interface{})
+	return cmdService
 }
