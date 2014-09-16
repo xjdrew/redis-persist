@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"redis"
+	"sort"
 	"strconv"
 	"time"
 )
@@ -129,7 +130,7 @@ func fast_check(ud interface{}, args []string) (result string, err error) {
 		}
 		if redis_version != leveldb_data["version"] {
 			mismatch_count++
-            log.Printf("key mismatch:%s, redis_version:%s, leveldb_version:%s", string(it.Key()), redis_version, leveldb_data["version"])
+			log.Printf("key mismatch:%s, redis_version:%s, leveldb_version:%s", string(it.Key()), redis_version, leveldb_data["version"])
 		}
 		count++
 		if count%1000 == 0 {
