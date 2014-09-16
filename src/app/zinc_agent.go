@@ -2,6 +2,7 @@ package main
 
 import (
 	"custom_jsonrpc"
+	"encoding/json"
 	"log"
 	"net"
 	"net/rpc"
@@ -45,7 +46,24 @@ func (agent *ZincAgent) Get(key *string, value *string) error {
 		log.Printf("query key:%s failed:%s", key, err)
 		return err
 	}
-	*value = string(t)
+	var data map[string]string
+	if err = json.Unmarshal(t, &data); err != nil {
+		log.Println(err)
+		return err
+	}
+	arr := make([]string, 2*len(data))
+	i := 0
+	for key, val := range data {
+		arr[i] = key
+		arr[i+1] = val
+		i = i + 2
+	}
+	chunk, err := json.Marshal(arr)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	*value = string(chunk)
 	return nil
 }
 

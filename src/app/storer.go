@@ -54,7 +54,8 @@ func (s *Storer) save(key string) {
 		return
 	}
 
-	resp, err := s.cli.Hgetall_arr(key)
+	resp := make(map[string]string)
+	err = s.cli.Hgetall(key, resp)
 	if err != nil {
 		s.retry(key, err)
 		return
