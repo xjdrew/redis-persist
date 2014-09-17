@@ -9,6 +9,7 @@ import (
 	"redis"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -271,6 +272,26 @@ func restore_one(ud interface{}, args []string) (result string, err error) {
 	return
 }
 
+func restore_all(ud interface{}, args []string) (result string, err error) {
+	context := ud.(*Context)
+	db := context.db
+	it := db.NewIterator()
+	count := 0
+	restore_count := 0
+	for it.SeekToFirst(); it.Valid(); it.Next() {
+		result, err = restore_one(ud, []string{string(it.Key())})
+		if strings.HasPrefix(result, "set key") {
+			restore_count++
+		}
+		count++
+		if count%100 == 0 {
+			log.Printf("progress:%d, restore:%d", count, restore_count)
+		}
+	}
+	result = fmt.Sprintf("restore key %d, total %d\n", restore_count, count)
+	return
+}
+
 func keys(ud interface{}, args []string) (result string, err error) {
 	start := 0
 	count := 10
@@ -382,6 +403,7 @@ func (context *Context) Register(c *CmdService) {
 	c.Register("check", context, check)
 	c.Register("fast_check", context, fast_check)
 	c.Register("restore_one", context, restore_one)
+	c.Register("restore_all", context, restore_all)
 }
 
 func NewContext() *Context {
