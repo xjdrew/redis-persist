@@ -9,6 +9,7 @@ import (
 	"redis"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -111,20 +112,28 @@ func check(ud interface{}, args []string) (result string, err error) {
 	db := context.db
 	cli := context.redis
 	it := db.NewIterator()
-	var leveldb_data map[string]string
 	count := 0
 	mismatch_count := 0
 	all_key_strings, err := cli.Exec("keys", "*")
 	redis_key_count := len(all_key_strings.([]string))
 	for it.SeekToFirst(); it.Valid(); it.Next() {
+		var leveldb_data map[string]string
 		if json_err := json.Unmarshal(it.Value(), &leveldb_data); json_err != nil {
 			log.Printf("json unmarshal err:%v", json_err)
 			log.Printf("it.Value():%v", it.Value())
+			continue
 		}
 		redis_data := make(map[string]string)
 		err_redis := cli.Hgetall(string(it.Key()), redis_data)
 		if err_redis != nil {
 			log.Printf("redis err:%v", err_redis)
+			continue
+		}
+		if len(redis_data) != len(leveldb_data) {
+			log.Printf("k/v amount mismatch:%v -> %d vs %d", string(it.Key()), len(redis_data), len(leveldb_data))
+			mismatch_count++
+			count++
+			continue
 		}
 		for key, value := range redis_data {
 			if value != leveldb_data[key] {
@@ -244,7 +253,7 @@ func restore_one(ud interface{}, args []string) (result string, err error) {
 		log.Println(err)
 		return
 	}
-	if redis_data["version"] == leveldb_data["version"] {
+	if redis_data["version"] >= leveldb_data["version"] {
 		result = fmt.Sprintf("skip key:%s redis data version is the same with leveldb data", key)
 		return
 	}
@@ -262,6 +271,26 @@ func restore_one(ud interface{}, args []string) (result string, err error) {
 		return
 	}
 	result = fmt.Sprintf("set key:%s", key)
+	return
+}
+
+func restore_all(ud interface{}, args []string) (result string, err error) {
+	context := ud.(*Context)
+	db := context.db
+	it := db.NewIterator()
+	count := 0
+	restore_count := 0
+	for it.SeekToFirst(); it.Valid(); it.Next() {
+		result, err = restore_one(ud, []string{string(it.Key())})
+		if strings.HasPrefix(result, "set key") {
+			restore_count++
+		}
+		count++
+		if count%100 == 0 {
+			log.Printf("progress:%d, restore:%d", count, restore_count)
+		}
+	}
+	result = fmt.Sprintf("restore key %d, total %d\n", restore_count, count)
 	return
 }
 
@@ -376,6 +405,7 @@ func (context *Context) Register(c *CmdService) {
 	c.Register("check", context, check)
 	c.Register("fast_check", context, fast_check)
 	c.Register("restore_one", context, restore_one)
+	c.Register("restore_all", context, restore_all)
 }
 
 func NewContext() *Context {
