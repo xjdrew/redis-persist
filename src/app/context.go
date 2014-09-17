@@ -106,6 +106,48 @@ func count(ud interface{}, args []string) (result string, err error) {
 	return
 }
 
+func check(ud interface{}, args []string) (result string, err error) {
+	context := ud.(*Context)
+	db := context.db
+	cli := context.redis
+	it := db.NewIterator()
+	var leveldb_data map[string]string
+	count := 0
+	mismatch_count := 0
+	all_key_strings, err := cli.Exec("keys", "*")
+	redis_key_count := len(all_key_strings.([]string))
+	for it.SeekToFirst(); it.Valid(); it.Next() {
+		if json_err := json.Unmarshal(it.Value(), &leveldb_data); json_err != nil {
+			log.Printf("json unmarshal err:%v", json_err)
+			log.Printf("it.Value():%v", it.Value())
+		}
+		redis_data := make(map[string]string)
+		err_redis := cli.Hgetall(string(it.Key()), redis_data)
+		if err_redis != nil {
+			log.Printf("redis err:%v", err_redis)
+		}
+		for key, value := range redis_data {
+			if value != leveldb_data[key] {
+				log.Printf("key mismatch:%v", string(it.Key()))
+				mismatch_count++
+				break
+			}
+		}
+		count++
+	}
+	result = fmt.Sprintf("%d counts, %d keys mismatch\n", count, mismatch_count)
+	switch {
+	case count > redis_key_count:
+		result = result + fmt.Sprintf("redis key amount is less than leveldb:%d vs %d", redis_key_count, count)
+	case count < redis_key_count:
+		result = result + fmt.Sprintf("redis key amount is larger than leveldb:%d vs %d", redis_key_count, count)
+	default:
+		result = result + fmt.Sprintf("%d key compared, %d mismatch", count, mismatch_count)
+	}
+
+	return
+}
+
 func fast_check(ud interface{}, args []string) (result string, err error) {
 	begin_timestamp := time.Now()
 	context := ud.(*Context)
@@ -130,7 +172,7 @@ func fast_check(ud interface{}, args []string) (result string, err error) {
 		}
 		if redis_version != leveldb_data["version"] {
 			mismatch_count++
-			log.Printf("key mismatch:%s, redis_version:%s, leveldb_version:%s", string(it.Key()), redis_version, leveldb_data["version"])
+			log.Printf("key mismatch:%s, redis_version:%v, leveldb_version:%s", string(it.Key()), redis_version, leveldb_data["version"])
 		}
 		count++
 		if count%1000 == 0 {
@@ -149,7 +191,6 @@ func fast_check(ud interface{}, args []string) (result string, err error) {
 		result = result + fmt.Sprintf("%d key compared, %d mismatch", count, mismatch_count)
 	}
 	return
-
 }
 
 func dump(ud interface{}, args []string) (result string, err error) {
@@ -181,6 +222,46 @@ func dump(ud interface{}, args []string) (result string, err error) {
 		fmt.Fprintf(buf, "%v:\t%v\n", key, val)
 	}
 	result = buf.String()
+	return
+}
+
+func restore_one(ud interface{}, args []string) (result string, err error) {
+	if len(args) < 1 {
+		result = "restore need one argument\n"
+		log.Println("restore need one argument")
+		return
+	}
+	key := args[0]
+	context := ud.(*Context)
+	db := context.db
+	chunk, err := db.Get([]byte(key))
+	var leveldb_data map[string]string
+	err = json.Unmarshal(chunk, &leveldb_data)
+	cli := context.redis
+	redis_data := make(map[string]string)
+	err = cli.Hgetall(key, redis_data)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	if redis_data["version"] == leveldb_data["version"] {
+		result = fmt.Sprintf("skip key:%s redis data version is the same with leveldb data", key)
+		return
+	}
+	leveldb_array := make([]interface{}, len(leveldb_data)*2+1)
+	leveldb_array[0] = key
+	i := 1
+	for k, v := range leveldb_data {
+		leveldb_array[i] = k
+		leveldb_array[i+1] = v
+		i = i + 2
+	}
+	_, err = cli.Exec("hmset", leveldb_array...)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	result = fmt.Sprintf("set key:%s", key)
 	return
 }
 
@@ -292,7 +373,9 @@ func (context *Context) Register(c *CmdService) {
 	c.Register("diff", context, diff)
 	c.Register("shutdown", context, shutdown)
 	c.Register("keys", context, keys)
+	c.Register("check", context, check)
 	c.Register("fast_check", context, fast_check)
+	c.Register("restore_one", context, restore_one)
 }
 
 func NewContext() *Context {

@@ -120,7 +120,7 @@ func (r *Redis) ReadResponse() (interface{}, error) {
 	return readResponse(reader)
 }
 
-func (r *Redis) Exec(cmd string, args ...interface{}) (interface{}, error) {
+func (r *Redis) exec(cmd string, args []interface{}) (interface{}, error) {
 	if r.conn == nil {
 		return nil, NoConnection
 	}
@@ -145,6 +145,10 @@ func (r *Redis) Hget(key string, subkey string) (resp string, err error) {
 	}
     resp = result.(string)
 	return
+}
+
+func (r *Redis) Exec(cmd string, args ...interface{}) (interface{}, error) {
+     return r.exec(cmd, args)
 }
 
 func (r *Redis) Hgetall(key string, obj map[string]string) (err error) {
