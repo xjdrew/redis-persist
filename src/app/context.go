@@ -111,12 +111,12 @@ func check(ud interface{}, args []string) (result string, err error) {
 	db := context.db
 	cli := context.redis
 	it := db.NewIterator()
-	var leveldb_data map[string]string
 	count := 0
 	mismatch_count := 0
 	all_key_strings, err := cli.Exec("keys", "*")
 	redis_key_count := len(all_key_strings.([]string))
 	for it.SeekToFirst(); it.Valid(); it.Next() {
+		var leveldb_data map[string]string
 		if json_err := json.Unmarshal(it.Value(), &leveldb_data); json_err != nil {
 			log.Printf("json unmarshal err:%v", json_err)
 			log.Printf("it.Value():%v", it.Value())
@@ -125,6 +125,12 @@ func check(ud interface{}, args []string) (result string, err error) {
 		err_redis := cli.Hgetall(string(it.Key()), redis_data)
 		if err_redis != nil {
 			log.Printf("redis err:%v", err_redis)
+		}
+		if len(redis_data) != len(leveldb_data) {
+			log.Printf("k/v amount mismatch:%v -> %d vs %d", string(it.Key()), len(redis_data), len(leveldb_data))
+			mismatch_count++
+			count++
+			continue
 		}
 		for key, value := range redis_data {
 			if value != leveldb_data[key] {
@@ -244,7 +250,7 @@ func restore_one(ud interface{}, args []string) (result string, err error) {
 		log.Println(err)
 		return
 	}
-	if redis_data["version"] == leveldb_data["version"] {
+	if redis_data["version"] >= leveldb_data["version"] {
 		result = fmt.Sprintf("skip key:%s redis data version is the same with leveldb data", key)
 		return
 	}
