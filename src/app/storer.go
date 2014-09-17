@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"strconv"
 	"sync"
 	"time"
 
@@ -42,6 +43,21 @@ func (s *Storer) retry(key string, err error) {
 	s.save(key)
 }
 
+func (s *Storer) expire(key string, resp map[string]string) {
+	value, ok := resp["expire"]
+	if !ok {
+		return
+	}
+	seconds, err := strconv.Atoi(value)
+	if err != nil {
+		return
+	}
+	if seconds > 0 {
+		log.Printf("expire key:%s, seconds:%d", key, seconds)
+		s.cli.Exec("expire", seconds)
+	}
+}
+
 func (s *Storer) save(key string) {
 	name, err := s.cli.Type(key)
 	if err != nil {
@@ -67,11 +83,16 @@ func (s *Storer) save(key string) {
 		return
 	}
 
-	err = s.db.Put([]byte(key), chunk)
+	index_key := indexKey(key)
+	version := []byte(resp["version"])
+	err = s.db.BatchPut([]byte(index_key), version, []byte(key), chunk)
 	if err != nil {
 		log.Printf("save key:%s failed, err:%v", key, err)
 		return
 	}
+
+	// expire key
+	s.expire(key, resp)
 
 	log.Printf("save key:%s, data len:%d", key, len(chunk))
 	return

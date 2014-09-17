@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"levigo"
 	"log"
 )
@@ -22,7 +23,20 @@ func (self *Leveldb) Open(dbname string) (err error) {
 	return
 }
 
-func (self *Leveldb) Put(key, value []byte) (err error) {
+func (self *Leveldb) BatchPut(args ...[]byte) error {
+	sz := len(args)
+	if sz == 0 || sz%2 != 0 {
+		return errors.New("illegal parameters")
+	}
+
+	batch := levigo.NewWriteBatch()
+	for i := 0; i < sz-1; i++ {
+		batch.Put(args[i], args[i+1])
+	}
+	return self.db.Write(self.woptions, batch)
+}
+
+func (self *Leveldb) Put(key, value []byte) error {
 	return self.db.Put(self.woptions, key, value)
 }
 
@@ -85,7 +99,7 @@ func NewLeveldb(name string) *Leveldb {
 	options.SetFilterPolicy(filter)
 
 	roptions := levigo.NewReadOptions()
-	roptions.SetVerifyChecksums(true)
+	roptions.SetVerifyChecksums(false)
 	roptions.SetFillCache(false)
 
 	woptions := levigo.NewWriteOptions()

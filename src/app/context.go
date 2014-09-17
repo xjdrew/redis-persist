@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func help(ud interface{}, args []string) (result string, err error) {
@@ -100,7 +99,7 @@ func count(ud interface{}, args []string) (result string, err error) {
 	defer it.Close()
 
 	i := 0
-	for it.SeekToFirst(); it.Valid(); it.Next() {
+	for it.Seek(INDEX_KEY_START); it.Valid() && bytes.Compare(it.Key(), INDEX_KEY_END) <= 0; it.Next() {
 		i++
 	}
 	result = strconv.Itoa(i)
@@ -112,6 +111,8 @@ func check(ud interface{}, args []string) (result string, err error) {
 	db := context.db
 	cli := context.redis
 	it := db.NewIterator()
+	defer it.Close()
+
 	count := 0
 	mismatch_count := 0
 	all_key_strings, err := cli.Exec("keys", "*")
@@ -158,47 +159,75 @@ func check(ud interface{}, args []string) (result string, err error) {
 }
 
 func fast_check(ud interface{}, args []string) (result string, err error) {
-	begin_timestamp := time.Now()
 	context := ud.(*Context)
-	db := context.db
 	cli := context.redis
-	it := db.NewIterator()
-	defer it.Close()
-	var leveldb_data map[string]string
-	count := 0
+	db := context.db
+
+	detail := false
+	if len(args) > 0 && args[0] == "detail" {
+		detail = true
+	}
+
+	var miss []string
+	var mismatch []string
+	if detail {
+		miss = make([]string, 0)
+		mismatch = make([]string, 0)
+	}
+	miss_count := 0
+	match_count := 0
 	mismatch_count := 0
-	all_key_strings, err := cli.Exec("keys", "*")
-	redis_key_count := len(all_key_strings.([]string))
-	for it.SeekToFirst(); it.Valid(); it.Next() {
-		redis_version, err_redis := cli.Hget(string(it.Key()), "version")
-		if err_redis != nil {
-			log.Printf("redis err:%v", err_redis)
+	ret, err := cli.Exec("keys", "*")
+	if err != nil {
+		return
+	}
+	keys := ret.([]string)
+	total := len(keys)
+
+	var cur_version string // redis
+	var bak_version []byte // leveldb
+	for i, key := range keys {
+		if ret, err = cli.Hget(key, "version"); err != nil {
 			return
 		}
-		if json_err := json.Unmarshal(it.Value(), &leveldb_data); json_err != nil {
-			log.Printf("json unmarshal err:%v", json_err)
-			log.Printf("it.Key:%v", string(it.Key()))
+		cur_version = ret.(string)
+		index_key := indexKey(key)
+		if bak_version, err = db.Get([]byte(index_key)); err != nil {
+			return
 		}
-		if redis_version != leveldb_data["version"] {
+		if bak_version == nil {
+			if miss != nil {
+				miss = append(miss, key)
+			}
+			miss_count++
+		} else if cur_version != string(bak_version) {
+			if mismatch != nil {
+				mismatch = append(mismatch, key)
+			}
 			mismatch_count++
-			log.Printf("key mismatch:%s, redis_version:%v, leveldb_version:%s", string(it.Key()), redis_version, leveldb_data["version"])
+		} else {
+			match_count++
 		}
-		count++
-		if count%1000 == 0 {
-			log.Printf("progress:%d/%d\n", count, redis_key_count)
+
+		if i%1000 == 0 {
+			log.Printf("fast check progress:%d/%d\n", i, total)
 		}
 	}
-	end_timestamp := time.Now()
-	diff := end_timestamp.Sub(begin_timestamp)
-	result = fmt.Sprintf("%d counts, %d keys mismatch in %f seconds\n", count, mismatch_count, diff.Seconds())
-	switch {
-	case count > redis_key_count:
-		result = result + fmt.Sprintf("redis key amount is less than leveldb:%d vs %d", redis_key_count, count)
-	case count < redis_key_count:
-		result = result + fmt.Sprintf("redis key amount is larger than leveldb:%d vs %d", redis_key_count, count)
-	default:
-		result = result + fmt.Sprintf("%d key compared, %d mismatch", count, mismatch_count)
+
+	buf := bytes.NewBufferString("fast check results:\n")
+	fmt.Fprintf(buf, "total: %d\n", total)
+	fmt.Fprintf(buf, "miss: %d\n", miss_count)
+	fmt.Fprintf(buf, "mismatch: %d\n", mismatch_count)
+	fmt.Fprintf(buf, "match: %d\n", match_count)
+	if detail {
+		if mismatch_count > 0 {
+			fmt.Fprintf(buf, "mismatch keys: %s\n", strings.Join(mismatch, ", "))
+		}
+		if miss_count > 0 {
+			fmt.Fprintf(buf, "miss keys: %s\n", strings.Join(miss, ", "))
+		}
 	}
+	result = buf.String()
 	return
 }
 
@@ -318,10 +347,10 @@ func keys(ud interface{}, args []string) (result string, err error) {
 
 	buf := bytes.NewBufferString("keys:\n")
 	i := 0
-	for it.SeekToFirst(); it.Valid(); it.Next() {
+	for it.Seek(INDEX_KEY_START); it.Valid() && bytes.Compare(it.Key(), INDEX_KEY_END) <= 0; it.Next() {
 		if start <= i && i <= start+count {
 			//log.Printf("key:%v", string(it.Key()))
-			fmt.Fprintf(buf, "%s\n", string(it.Key()))
+			fmt.Fprintf(buf, "%s\n", string(it.Key()[INDEX_KEY_LEN:]))
 		}
 		i++
 	}

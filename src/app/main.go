@@ -110,7 +110,7 @@ func main() {
 	context.s = s
 	context.c = c
 	context.Register(c)
-	context.sync_queue = make(chan string, 4096)
+	context.sync_queue = make(chan string, 1)
 
 	zinc_agent := NewZincAgent(setting, database)
 
