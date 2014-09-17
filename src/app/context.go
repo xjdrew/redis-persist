@@ -121,11 +121,13 @@ func check(ud interface{}, args []string) (result string, err error) {
 		if json_err := json.Unmarshal(it.Value(), &leveldb_data); json_err != nil {
 			log.Printf("json unmarshal err:%v", json_err)
 			log.Printf("it.Value():%v", it.Value())
+			continue
 		}
 		redis_data := make(map[string]string)
 		err_redis := cli.Hgetall(string(it.Key()), redis_data)
 		if err_redis != nil {
 			log.Printf("redis err:%v", err_redis)
+			continue
 		}
 		if len(redis_data) != len(leveldb_data) {
 			log.Printf("k/v amount mismatch:%v -> %d vs %d", string(it.Key()), len(redis_data), len(leveldb_data))
