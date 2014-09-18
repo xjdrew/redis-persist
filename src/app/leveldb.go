@@ -30,6 +30,8 @@ func (self *Leveldb) BatchPut(args ...[]byte) error {
 	}
 
 	batch := levigo.NewWriteBatch()
+	defer batch.Close()
+
 	for i := 0; i < sz-1; i++ {
 		batch.Put(args[i], args[i+1])
 	}
