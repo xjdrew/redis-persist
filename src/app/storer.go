@@ -54,7 +54,7 @@ func (s *Storer) expire(key string, resp map[string]string) {
 	}
 	if seconds > 0 {
 		log.Printf("expire key:%s, seconds:%d", key, seconds)
-		s.cli.Exec("expire", seconds)
+		s.cli.Exec("expire", key, seconds)
 	}
 }
 
