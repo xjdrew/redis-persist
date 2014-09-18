@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"net"
 	"strings"
 	"sync"
+	"time"
 )
 
 type CmdHandler func(ud interface{}, args []string) (string, error)
@@ -42,6 +44,7 @@ func (c *CmdService) handleConnection(conn net.Conn) {
 
 		var response string
 
+		from := time.Now()
 		cmd := args[0]
 		cb, ok := c.handlers[cmd]
 		if ok {
@@ -57,7 +60,8 @@ func (c *CmdService) handleConnection(conn net.Conn) {
 		} else {
 			response = "- unknown command: " + cmd
 		}
-		response = response + "\n"
+		duration := time.Now().Sub(from)
+		response = fmt.Sprintf("%s\nelapsed %f sec\n", response, duration.Seconds())
 		conn.Write([]byte(response))
 	}
 	log.Printf("end handle conn:%v", conn)
