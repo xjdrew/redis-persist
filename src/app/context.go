@@ -282,8 +282,8 @@ func restore_one(ud interface{}, args []string) (result string, err error) {
 		log.Println(err)
 		return
 	}
-	if redis_data["version"] >= leveldb_data["version"] {
-		result = fmt.Sprintf("skip key:%s redis data version is the same with leveldb data", key)
+	if redis_data["version"] >= leveldb_data["version"] && len(redis_data) > 0 {
+		result = fmt.Sprintf("skip key:%s version:%v == %v", key, redis_data["version"], leveldb_data["version"])
 		return
 	}
 	leveldb_array := make([]interface{}, len(leveldb_data)*2+1)
@@ -313,6 +313,8 @@ func restore_all(ud interface{}, args []string) (result string, err error) {
 		result, err = restore_one(ud, []string{string(it.Key())})
 		if strings.HasPrefix(result, "set key") {
 			restore_count++
+		} else {
+			log.Println(result)
 		}
 		count++
 		if count%100 == 0 {
