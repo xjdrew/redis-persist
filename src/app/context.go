@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"redis"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+
+	"redis"
 )
 
 func help(ud interface{}, args []string) (result string, err error) {
@@ -17,6 +19,23 @@ func help(ud interface{}, args []string) (result string, err error) {
 
 	for cmd := range c.handlers {
 		result = result + cmd + "\n"
+	}
+	return
+}
+
+func procs(ud interface{}, args []string) (result string, err error) {
+	count := 0
+	if len(args) > 0 {
+		if count, err = strconv.Atoi(args[0]); err != nil {
+			Error("illegal parameter: %v", err)
+			return
+		}
+	}
+	old := runtime.GOMAXPROCS(count)
+	if count < 1 {
+		result = fmt.Sprintf("max procs:%d", old)
+	} else {
+		result = fmt.Sprintf("modify max procs:%d -> %d", old, count)
 	}
 	return
 }
@@ -428,6 +447,7 @@ func (context *Context) Register(c *CmdService) {
 
 	Info("register command service")
 	c.Register("help", context, help)
+	c.Register("procs", context, procs)
 	c.Register("info", context, info)
 	c.Register("sync", context, sync_one)
 	c.Register("sync_all", context, sync_all)
