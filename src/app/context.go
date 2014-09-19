@@ -323,7 +323,7 @@ func dump(ud interface{}, args []string) (result string, err error) {
 	return
 }
 
-func restore(ud interface{}, key string) (err error) {
+func restore(ud interface{}, key string, cli *redis.Redis) (err error) {
 	context := ud.(*Context)
 	db := context.db
 	var chunk []byte
@@ -332,13 +332,16 @@ func restore(ud interface{}, key string) (err error) {
 		return
 	}
 
+	if chunk == nil {
+		err = errors.New("key doesn't exist on leveldb")
+		return
+	}
+
 	var leveldb_data map[string]string
 	err = json.Unmarshal(chunk, &leveldb_data)
-	cli, err := GetRedisConnection()
 	if err != nil {
 		return
 	}
-	defer cli.Close()
 	redis_data := make(map[string]string)
 	err = cli.Hgetall(key, redis_data)
 	if err != nil {
@@ -347,7 +350,7 @@ func restore(ud interface{}, key string) (err error) {
 	}
 
 	if redis_data["version"] >= leveldb_data["version"] && len(redis_data) > 0 {
-		err = errors.New(fmt.Sprintf("redis_data[version]:%s >= leveldb_data[version]:%s", redis_data["version"], leveldb_data["version"]))
+		Info("redis_data[version]:%s >= leveldb_data[version]:%s", redis_data["version"], leveldb_data["version"])
 		return
 	}
 	leveldb_array := make([]interface{}, len(leveldb_data)*2+1)
@@ -372,7 +375,13 @@ func restore_one(ud interface{}, args []string) (result string, err error) {
 		return
 	}
 	key := args[0]
-	err = restore(ud, key)
+	cli, err := GetRedisConnection()
+	if err != nil {
+		return
+	}
+	defer cli.Close()
+
+	err = restore(ud, key, cli)
 	if err != nil {
 		return
 	}
@@ -386,8 +395,14 @@ func restore_all(ud interface{}, args []string) (result string, err error) {
 	it := db.NewIterator()
 	count := 0
 	restore_count := 0
-	for it.SeekToFirst(); it.Valid(); it.Next() {
-		err = restore(ud, string(it.Key()))
+	cli, err := GetRedisConnection()
+	if err != nil {
+		return
+	}
+	defer cli.Close()
+
+	for it.Seek(KEY_START); it.Valid() && bytes.Compare(it.Key(), KEY_END) <= 0; it.Next() {
+		err = restore(ud, string(it.Key()), cli)
 		if err != nil {
 			return
 		} else {
