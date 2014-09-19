@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"levigo"
-	"log"
 )
 
 type Leveldb struct {
@@ -114,9 +113,9 @@ func NewLeveldb(name string) *Leveldb {
 		woptions,
 		nil}
 	if err := db.Open(name); err != nil {
-		log.Panicf("open db failed, err:%v", err)
+		Panic("open db failed, err:%v", err)
 	} else {
-		log.Printf("open db succeed, dbname:%v", name)
+		Info("open db succeed, dbname:%v", name)
 	}
 	return db
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"time"
 
 	"redis"
@@ -23,14 +22,14 @@ func (m *Monitor) subscribe() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("config set %s = %s", config_key, m.notification_config)
+	Info("config set %s = %s", config_key, m.notification_config)
 
 	_, err = m.cli.Exec("subscribe", m.event)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("subscribe: %s", m.event)
+	Info("subscribe: %s", m.event)
 	return nil
 }
 
@@ -43,17 +42,17 @@ func (m *Monitor) reconnect() {
 		if wait > 30 {
 			wait = 30
 		}
-		log.Printf("try to reconnect monitor, times:%d, wait:%d", times, wait)
+		Info("try to reconnect monitor, times:%d, wait:%d", times, wait)
 		time.Sleep(time.Duration(wait) * time.Second)
 
 		err := m.cli.ReConnect()
 		if err != nil {
-			log.Printf("reconnect monitor failed:%v", err)
+			Error("reconnect monitor failed:%v", err)
 			continue
 		}
 		err = m.subscribe()
 		if err != nil {
-			log.Printf("subscribe monitor failed:%v", err)
+			Error("subscribe monitor failed:%v", err)
 			continue
 		} else {
 			break
@@ -64,44 +63,44 @@ func (m *Monitor) reconnect() {
 func (m *Monitor) Start(queue chan string) {
 	err := m.cli.Connect()
 	if err != nil {
-		log.Panicf("start monitor failed:%v", err)
+		Panic("start monitor failed:%v", err)
 	}
 	err = m.subscribe()
 	if err != nil {
-		log.Panicf("start monitor failed:%v", err)
+		Panic("start monitor failed:%v", err)
 	}
-	log.Print("start monitor succeed")
+	Info("start monitor succeed")
 
 	for {
 		resp, err := m.cli.ReadResponse()
 		if m.quit_flag {
 			close(queue)
-			log.Print("close redis connection, monitor will exit")
+			Error("close redis connection, monitor will exit")
 			break
 		}
 
 		if err != nil {
-			log.Printf("recv message failed, try to reconnect to redis:%v", err)
+			Error("recv message failed, try to reconnect to redis:%v", err)
 			m.reconnect()
 			continue
 		}
 		if data, ok := resp.([]string); ok {
 			if len(data) != 3 || data[0] != "message" {
-				log.Printf("receive unexpected message, %v", data)
+				Error("receive unexpected message, %v", data)
 			} else {
 				event := data[1]
 				key := data[2]
-				log.Printf("receive [%s], value[%s]", event, key)
+				Info("receive [%s], value[%s]", event, key)
 				queue <- key
 
 				qlen := len(queue)
 				if qlen > m.qlen {
-					log.Printf("queue grow, current length:%d", qlen)
+					Error("queue grow, current length:%d", qlen)
 				}
 				m.qlen = qlen
 			}
 		} else {
-			log.Printf("receive unexpected message, %v", resp)
+			Error("receive unexpected message, %v", resp)
 		}
 	}
 	m.quit_chan <- 1

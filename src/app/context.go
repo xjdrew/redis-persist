@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"redis"
 	"sort"
 	"strconv"
@@ -73,7 +72,7 @@ func sync_all(ud interface{}, args []string) (result string, err error) {
 	cli := context.redis
 	all_key_strings, err := cli.Exec("keys", "*")
 	if err != nil {
-		log.Printf("sync_all cmd service failed:%v", err)
+		Error("sync_all cmd service failed:%v", err)
 		return
 	}
 	keys := all_key_strings.([]string)
@@ -84,10 +83,10 @@ func sync_all(ud interface{}, args []string) (result string, err error) {
 		sync_queue <- key
 		cur += 1
 		if cur%100 == 0 {
-			log.Printf("sync progress: %d/%d, queue:%d", cur, sz, len(sync_queue))
+			Info("sync progress: %d/%d, queue:%d", cur, sz, len(sync_queue))
 		}
 	}
-	log.Printf("sync finish: %d/%d", cur, sz)
+	Info("sync finish: %d/%d", cur, sz)
 	result = strconv.Itoa(sz)
 	return
 }
@@ -120,25 +119,24 @@ func check(ud interface{}, args []string) (result string, err error) {
 	for it.SeekToFirst(); it.Valid(); it.Next() {
 		var leveldb_data map[string]string
 		if json_err := json.Unmarshal(it.Value(), &leveldb_data); json_err != nil {
-			log.Printf("json unmarshal err:%v", json_err)
-			log.Printf("it.Value():%v", it.Value())
+			Error("json unmarshal err:%v", json_err)
 			continue
 		}
 		redis_data := make(map[string]string)
 		err_redis := cli.Hgetall(string(it.Key()), redis_data)
 		if err_redis != nil {
-			log.Printf("redis err:%v", err_redis)
+			Error("redis err:%v", err_redis)
 			continue
 		}
 		if len(redis_data) != len(leveldb_data) {
-			log.Printf("k/v amount mismatch:%v -> %d vs %d", string(it.Key()), len(redis_data), len(leveldb_data))
+			Error("k/v amount mismatch:%v -> %d vs %d", string(it.Key()), len(redis_data), len(leveldb_data))
 			mismatch_count++
 			count++
 			continue
 		}
 		for key, value := range redis_data {
 			if value != leveldb_data[key] {
-				log.Printf("key mismatch:%v", string(it.Key()))
+				Error("key mismatch:%v", string(it.Key()))
 				mismatch_count++
 				break
 			}
@@ -210,7 +208,7 @@ func fast_check(ud interface{}, args []string) (result string, err error) {
 		}
 
 		if i%1000 == 0 {
-			log.Printf("fast check progress:%d/%d\n", i, total)
+			Info("fast check progress:%d/%d\n", i, total)
 		}
 	}
 
@@ -243,15 +241,15 @@ func dump(ud interface{}, args []string) (result string, err error) {
 
 	chunk, err := db.Get([]byte(key))
 	if chunk == nil || err != nil {
-		log.Printf("fetch data failed:%v", err)
+		Error("fetch data failed:%v", err)
 		return
 	}
 
-	log.Printf("dump key:%s(%d)", key, len(chunk))
+	Info("dump key:%s(%d)", key, len(chunk))
 	var data map[string]string
 	err = json.Unmarshal(chunk, &data)
 	if err != nil {
-		log.Printf("unmarshal chunk failed:%v", err)
+		Error("unmarshal chunk failed:%v", err)
 		return
 	}
 
@@ -265,23 +263,29 @@ func dump(ud interface{}, args []string) (result string, err error) {
 
 func restore_one(ud interface{}, args []string) (result string, err error) {
 	if len(args) < 1 {
-		result = "restore need one argument\n"
-		log.Println("restore need one argument")
+		err = errors.New("restore need one argument")
 		return
 	}
+
 	key := args[0]
 	context := ud.(*Context)
 	db := context.db
-	chunk, err := db.Get([]byte(key))
+	var chunk []byte
+	if chunk, err = db.Get([]byte(key)); err != nil {
+		Error("query key %s failed:%v", key, err)
+		return
+	}
+
 	var leveldb_data map[string]string
 	err = json.Unmarshal(chunk, &leveldb_data)
 	cli := context.redis
 	redis_data := make(map[string]string)
 	err = cli.Hgetall(key, redis_data)
 	if err != nil {
-		log.Println(err)
+		Error("hgetall key %s failed:%v", key, err)
 		return
 	}
+
 	if redis_data["version"] >= leveldb_data["version"] && len(redis_data) > 0 {
 		result = fmt.Sprintf("skip key:%s version:%v == %v", key, redis_data["version"], leveldb_data["version"])
 		return
@@ -296,7 +300,7 @@ func restore_one(ud interface{}, args []string) (result string, err error) {
 	}
 	_, err = cli.Exec("hmset", leveldb_array...)
 	if err != nil {
-		log.Println(err)
+		Error("hmset key %s failed:%v", key, err)
 		return
 	}
 	result = fmt.Sprintf("set key:%s", key)
@@ -314,11 +318,11 @@ func restore_all(ud interface{}, args []string) (result string, err error) {
 		if strings.HasPrefix(result, "set key") {
 			restore_count++
 		} else {
-			log.Println(result)
+			Error(result)
 		}
 		count++
 		if count%100 == 0 {
-			log.Printf("progress:%d, restore:%d", count, restore_count)
+			Info("progress:%d, restore:%d", count, restore_count)
 		}
 	}
 	result = fmt.Sprintf("restore key %d, total %d\n", restore_count, count)
@@ -330,14 +334,14 @@ func keys(ud interface{}, args []string) (result string, err error) {
 	count := 10
 	if len(args) > 0 {
 		if start, err = strconv.Atoi(args[0]); err != nil {
-			log.Println("iter start error:", err)
+			Error("iter start error: %v", err)
 			return
 		}
 	}
 
 	if len(args) > 1 {
 		if count, err = strconv.Atoi(args[1]); err != nil {
-			log.Println("iter start error:", err)
+			Error("iter start error: %v", err)
 			return
 		}
 	}
@@ -351,7 +355,6 @@ func keys(ud interface{}, args []string) (result string, err error) {
 	i := 0
 	for it.Seek(INDEX_KEY_START); it.Valid() && bytes.Compare(it.Key(), INDEX_KEY_END) <= 0; it.Next() {
 		if start <= i && i <= start+count {
-			//log.Printf("key:%v", string(it.Key()))
 			fmt.Fprintf(buf, "%s\n", string(it.Key()[INDEX_KEY_LEN:]))
 		}
 		i++
@@ -380,14 +383,14 @@ func diff(ud interface{}, args []string) (result string, err error) {
 
 	chunk, err := db.Get([]byte(key))
 	if chunk == nil || err != nil {
-		log.Printf("fetch data failed:%v", err)
+		Error("fetch data failed:%v", err)
 		return
 	}
 
 	var right map[string]string
 	err = json.Unmarshal(chunk, &right)
 	if err != nil {
-		log.Printf("unmarshal chunk failed:%v", err)
+		Error("unmarshal chunk failed:%v", err)
 		return
 	}
 
@@ -420,10 +423,10 @@ func diff(ud interface{}, args []string) (result string, err error) {
 func (context *Context) Register(c *CmdService) {
 	err := context.redis.Connect()
 	if err != nil {
-		log.Panicf("register cmd service failed:%v", err)
+		Panic("register cmd service failed:%v", err)
 	}
 
-	log.Printf("register command service")
+	Info("register command service")
 	c.Register("help", context, help)
 	c.Register("info", context, info)
 	c.Register("sync", context, sync_one)

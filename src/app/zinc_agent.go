@@ -3,10 +3,8 @@ package main
 import (
 	"custom_jsonrpc"
 	"encoding/json"
-	"log"
 	"net"
 	"net/rpc"
-	"os"
 )
 
 type ZincAgent struct {
@@ -19,36 +17,35 @@ func StartZincAgent(agent *ZincAgent) {
 	rpc.Register(agent)
 	tcpAddr, err := net.ResolveTCPAddr("tcp", agent.addr)
 	if err != nil {
-		log.Printf("Error: %v", err)
-		os.Exit(1)
+		Panic("Error: %v", err)
 	}
 	listener, err := net.ListenTCP("tcp", tcpAddr)
 	if err != nil {
-		log.Printf("Error: %v", err)
-		os.Exit(1)
+		Panic("Error: %v", err)
 	}
-	log.Printf("Start json rpc on %v", tcpAddr)
+
+	Info("Start json rpc on %v", tcpAddr)
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Printf("accept conn failed:%v", err)
+			Error("accept conn failed:%v", err)
 			continue
 		}
-		log.Printf("New conn:%v", conn)
+		Info("New conn:%v", conn)
 		go custom_jsonrpc.ServeConn(conn)
 	}
 }
 
 func (agent *ZincAgent) Get(key *string, value *string) error {
-	log.Printf("zinc agent get:%v", *key)
+	Info("zinc agent get:%v", *key)
 	t, err := agent.db.Get([]byte(*key))
 	if err != nil {
-		log.Printf("query key:%s failed:%s", key, err)
+		Error("query key:%s failed:%s", key, err)
 		return err
 	}
 	var data map[string]string
 	if err = json.Unmarshal(t, &data); err != nil {
-		log.Println(err)
+		Error("unmarshal key:%s failed:%v", key, err)
 		return err
 	}
 	arr := make([]string, 2*len(data))
@@ -60,7 +57,7 @@ func (agent *ZincAgent) Get(key *string, value *string) error {
 	}
 	chunk, err := json.Marshal(arr)
 	if err != nil {
-		log.Println(err)
+		Error("marshal key:%s, failed:%v", key, err)
 		return err
 	}
 	*value = string(chunk)

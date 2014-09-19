@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -24,16 +23,16 @@ func (c *CmdService) handleConnection(conn net.Conn) {
 	defer c.wg.Done()
 	defer func() {
 		if err := recover(); err != nil {
-			log.Printf("handle connection:%v failed:%v", conn.RemoteAddr(), err)
+			Error("handle connection:%v failed:%v", conn.RemoteAddr(), err)
 		}
 	}()
 
-	log.Printf("handle conn:%v", conn)
+	Info("handle conn:%v", conn)
 	reader := bufio.NewReader(conn)
 	for {
 		s, err := reader.ReadString('\n')
 		if err != nil {
-			log.Printf("read conn:%v failed, err:%v", conn, err)
+			Error("read conn:%v failed, err:%v", conn, err)
 			break
 		}
 		s = strings.Trim(s, "\r\n ")
@@ -48,7 +47,7 @@ func (c *CmdService) handleConnection(conn net.Conn) {
 		cmd := args[0]
 		cb, ok := c.handlers[cmd]
 		if ok {
-			log.Printf("recv command: %s", cmd)
+			Info("recv command: %s", cmd)
 			ud := cb[0]
 			handle := cb[1].(CmdHandler)
 			result, err := handle(ud, args[1:])
@@ -64,7 +63,7 @@ func (c *CmdService) handleConnection(conn net.Conn) {
 		response = fmt.Sprintf("%s\nelapsed %f sec\n", response, duration.Seconds())
 		conn.Write([]byte(response))
 	}
-	log.Printf("end handle conn:%v", conn)
+	Info("end handle conn:%v", conn)
 }
 
 func (c *CmdService) Register(cmd string, ud interface{}, handler CmdHandler) {
@@ -72,7 +71,7 @@ func (c *CmdService) Register(cmd string, ud interface{}, handler CmdHandler) {
 	if handler == nil && ok {
 		delete(c.handlers, cmd)
 	} else {
-		log.Printf("register cmd:%s", cmd)
+		Info("register cmd:%s", cmd)
 		c.handlers[cmd] = []interface{}{ud, handler}
 	}
 }
@@ -83,16 +82,16 @@ func (c *CmdService) Start() {
 
 	ln, err := net.Listen("tcp", c.addr)
 	if err != nil {
-		log.Panicf("start manager failed:%v", err)
+		Panic("start manager failed:%v", err)
 	}
 
-	log.Printf("start manager succeed:%s", c.addr)
+	Info("start manager succeed:%s", c.addr)
 
 	c.ln = ln
 	for {
 		conn, err := c.ln.Accept()
 		if err != nil {
-			log.Printf("accept failed:%v", err)
+			Error("accept failed:%v", err)
 			break
 		}
 		c.wg.Add(1)

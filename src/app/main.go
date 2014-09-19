@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/signal"
 	"redis"
@@ -39,7 +38,8 @@ type Manager struct {
 }
 
 type Log struct {
-	File string
+	File  string
+	Level int
 }
 
 type Zinc struct {
@@ -66,7 +66,7 @@ func handleSignal(quit chan bool) {
 	for sig := range c {
 		switch sig {
 		case syscall.SIGHUP:
-			log.Print("catch sighup, ignore")
+			Error("catch sighup, ignore")
 		default:
 			quit <- true
 		}
@@ -120,6 +120,6 @@ func main() {
 	go c.Start()
 	go StartZincAgent(zinc_agent)
 
-	log.Println("start succeed")
-	log.Printf("catch signal %v, program will exit", <-context.quit_chan)
+	Info("start succeed")
+	Error("catch signal %v, program will exit", <-context.quit_chan)
 }

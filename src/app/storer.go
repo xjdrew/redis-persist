@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"strconv"
 	"sync"
 	"time"
@@ -24,12 +23,12 @@ func (s *Storer) reconnect() {
 		if wait > 30 {
 			wait = 30
 		}
-		log.Printf("try to reconnect storer, times:%d, wait:%d", times, wait)
+		Info("try to reconnect storer, times:%d, wait:%d", times, wait)
 		time.Sleep(time.Duration(wait) * time.Second)
 
 		err := s.cli.ReConnect()
 		if err != nil {
-			log.Printf("reconnect storer failed:%v", err)
+			Error("reconnect storer failed:%v", err)
 			continue
 		} else {
 			break
@@ -38,7 +37,7 @@ func (s *Storer) reconnect() {
 }
 
 func (s *Storer) retry(key string, err error) {
-	log.Printf("recv message failed, try to reconnect to redis:%v", err)
+	Error("recv message failed, try to reconnect to redis:%v", err)
 	s.reconnect()
 	s.save(key)
 }
@@ -53,7 +52,7 @@ func (s *Storer) expire(key string, resp map[string]string) {
 		return
 	}
 	if seconds > 0 {
-		log.Printf("expire key:%s, seconds:%d", key, seconds)
+		Info("expire key:%s, seconds:%d", key, seconds)
 		s.cli.Exec("expire", key, seconds)
 	}
 }
@@ -66,7 +65,7 @@ func (s *Storer) save(key string) {
 	}
 
 	if name != "hash" {
-		log.Printf("unexpected key type, key:%s, type:%s", key, name)
+		Error("unexpected key type, key:%s, type:%s", key, name)
 		return
 	}
 
@@ -79,7 +78,7 @@ func (s *Storer) save(key string) {
 
 	chunk, err := json.Marshal(resp)
 	if err != nil {
-		log.Printf("marshal obj failed, key:%s, obj:%v, err:%v", key, resp, err)
+		Error("marshal obj failed, key:%s, obj:%v, err:%v", key, resp, err)
 		return
 	}
 
@@ -87,14 +86,14 @@ func (s *Storer) save(key string) {
 	version := []byte(resp["version"])
 	err = s.db.BatchPut([]byte(index_key), version, []byte(key), chunk)
 	if err != nil {
-		log.Printf("save key:%s failed, err:%v", key, err)
+		Error("save key:%s failed, err:%v", key, err)
 		return
 	}
 
 	// expire key
 	s.expire(key, resp)
 
-	log.Printf("save key:%s, data len:%d", key, len(chunk))
+	Info("save key:%s, data len:%d", key, len(chunk))
 	return
 }
 
@@ -103,15 +102,15 @@ func (s *Storer) Start(queue chan string, wg *sync.WaitGroup) {
 
 	err := s.cli.Connect()
 	if err != nil {
-		log.Panicf("start Storer failed:%v", err)
+		Panic("start Storer failed:%v", err)
 	}
 
-	log.Print("start storer succeed")
+	Info("start storer succeed")
 
 	for key := range queue {
 		s.save(key)
 	}
-	log.Print("queue is closed, storer will exit")
+	Info("queue is closed, storer will exit")
 }
 
 func NewStorer(db *Leveldb) *Storer {
@@ -149,7 +148,7 @@ func (m *StorerMgr) Start(queue chan string) {
 		m.queues[i] <- key
 	}
 
-	log.Print("queue is closed, all storer will exit")
+	Info("queue is closed, all storer will exit")
 	for _, queue := range m.queues {
 		close(queue)
 	}

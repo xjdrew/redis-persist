@@ -15,7 +15,8 @@
     },
 
     "log":{
-        "file":"/tmp/land1.log"
+        "file":"/tmp/land1.log",
+        "level" : 3
     },
 
     "zinc":{
