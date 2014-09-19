@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"redis"
+	"reflect"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
-
-	"redis"
 )
 
 func help(ud interface{}, args []string) (result string, err error) {
@@ -126,52 +126,83 @@ func count(ud interface{}, args []string) (result string, err error) {
 
 func check(ud interface{}, args []string) (result string, err error) {
 	context := ud.(*Context)
-	db := context.db
 	cli := context.redis
-	it := db.NewIterator()
-	defer it.Close()
+	db := context.db
 
-	count := 0
+	detail := false
+	if len(args) > 0 && args[0] == "detail" {
+		detail = true
+	}
+
+	var miss []string
+	var mismatch []string
+	if detail {
+		miss = make([]string, 0)
+		mismatch = make([]string, 0)
+	}
+	miss_count := 0
+	match_count := 0
 	mismatch_count := 0
-	all_key_strings, err := cli.Exec("keys", "*")
-	redis_key_count := len(all_key_strings.([]string))
-	for it.SeekToFirst(); it.Valid(); it.Next() {
-		var leveldb_data map[string]string
-		if json_err := json.Unmarshal(it.Value(), &leveldb_data); json_err != nil {
-			Error("json unmarshal err:%v", json_err)
-			continue
-		}
-		redis_data := make(map[string]string)
-		err_redis := cli.Hgetall(string(it.Key()), redis_data)
-		if err_redis != nil {
-			Error("redis err:%v", err_redis)
-			continue
-		}
-		if len(redis_data) != len(leveldb_data) {
-			Error("k/v amount mismatch:%v -> %d vs %d", string(it.Key()), len(redis_data), len(leveldb_data))
-			mismatch_count++
-			count++
-			continue
-		}
-		for key, value := range redis_data {
-			if value != leveldb_data[key] {
-				Error("key mismatch:%v", string(it.Key()))
-				mismatch_count++
-				break
-			}
-		}
-		count++
+	ret, err := cli.Exec("keys", "*")
+	if err != nil {
+		return
 	}
-	result = fmt.Sprintf("%d counts, %d keys mismatch\n", count, mismatch_count)
-	switch {
-	case count > redis_key_count:
-		result = result + fmt.Sprintf("redis key amount is less than leveldb:%d vs %d", redis_key_count, count)
-	case count < redis_key_count:
-		result = result + fmt.Sprintf("redis key amount is larger than leveldb:%d vs %d", redis_key_count, count)
-	default:
-		result = result + fmt.Sprintf("%d key compared, %d mismatch", count, mismatch_count)
+	keys := ret.([]string)
+	total := len(keys)
+
+	for i, key := range keys {
+		redis_data := make(map[string]string)
+		err = cli.Hgetall(key, redis_data)
+		if err != nil {
+			Error("hgetall key %s failed:%v", key, err)
+			return
+		}
+		var chunk []byte
+		var leveldb_data map[string]string
+		if chunk, err = db.Get([]byte(key)); err != nil {
+			Error("leveldb.Get failed on key %s failed:%v", key, err)
+			return
+		}
+		if chunk == nil {
+			if miss != nil {
+				miss = append(miss, key)
+			}
+			miss_count++
+			continue
+		}
+		err = json.Unmarshal(chunk, &leveldb_data)
+		if err != nil {
+			Error("json.Unmarshal failed on key %s failed:%v", key, err)
+			continue
+		}
+		if !reflect.DeepEqual(redis_data, leveldb_data) {
+			if mismatch != nil {
+				mismatch = append(mismatch, key)
+			}
+			mismatch_count++
+		} else {
+			match_count++
+		}
+
+		if i%1000 == 0 {
+			Info("check progress:%d/%d\n", i, total)
+		}
 	}
 
+	buf := bytes.NewBufferString("check results:\n")
+	fmt.Fprintf(buf, "total: %d\n", total)
+	fmt.Fprintf(buf, "miss: %d\n", miss_count)
+	fmt.Fprintf(buf, "mismatch: %d\n", mismatch_count)
+	fmt.Fprintf(buf, "match: %d\n", match_count)
+	if detail {
+		if mismatch_count > 0 {
+			fmt.Fprintf(buf, "mismatch keys: %s\n", strings.Join(mismatch, ", "))
+		}
+		if miss_count > 0 {
+			fmt.Fprintf(buf, "miss keys: %s\n", strings.Join(miss, ", "))
+		}
+	}
+	result = buf.String()
 	return
 }
 
@@ -280,13 +311,7 @@ func dump(ud interface{}, args []string) (result string, err error) {
 	return
 }
 
-func restore_one(ud interface{}, args []string) (result string, err error) {
-	if len(args) < 1 {
-		err = errors.New("restore need one argument")
-		return
-	}
-
-	key := args[0]
+func restore(ud interface{}, key string) (err error) {
 	context := ud.(*Context)
 	db := context.db
 	var chunk []byte
@@ -306,7 +331,7 @@ func restore_one(ud interface{}, args []string) (result string, err error) {
 	}
 
 	if redis_data["version"] >= leveldb_data["version"] && len(redis_data) > 0 {
-		result = fmt.Sprintf("skip key:%s version:%v == %v", key, redis_data["version"], leveldb_data["version"])
+		err = errors.New(fmt.Sprintf("redis_data[version]:%s >= leveldb_data[version]:%s", redis_data["version"], leveldb_data["version"]))
 		return
 	}
 	leveldb_array := make([]interface{}, len(leveldb_data)*2+1)
@@ -322,6 +347,19 @@ func restore_one(ud interface{}, args []string) (result string, err error) {
 		Error("hmset key %s failed:%v", key, err)
 		return
 	}
+	return
+}
+
+func restore_one(ud interface{}, args []string) (result string, err error) {
+	if len(args) < 1 {
+		err = errors.New("restore need one argument")
+		return
+	}
+	key := args[0]
+	err = restore(ud, key)
+	if err != nil {
+		return
+	}
 	result = fmt.Sprintf("set key:%s", key)
 	return
 }
@@ -333,11 +371,11 @@ func restore_all(ud interface{}, args []string) (result string, err error) {
 	count := 0
 	restore_count := 0
 	for it.SeekToFirst(); it.Valid(); it.Next() {
-		result, err = restore_one(ud, []string{string(it.Key())})
-		if strings.HasPrefix(result, "set key") {
-			restore_count++
+		err = restore(ud, string(it.Key()))
+		if err != nil {
+			return
 		} else {
-			Error(result)
+			restore_count++
 		}
 		count++
 		if count%100 == 0 {
