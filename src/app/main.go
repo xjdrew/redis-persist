@@ -7,13 +7,11 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
-	"redis"
 	"syscall"
 )
 
 type Context struct {
 	db         *Leveldb
-	redis      *redis.Redis
 	m          *Monitor
 	s          *StorerMgr
 	c          *CmdService

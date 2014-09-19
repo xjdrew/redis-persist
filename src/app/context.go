@@ -87,8 +87,12 @@ func sync_one(ud interface{}, args []string) (result string, err error) {
 func sync_all(ud interface{}, args []string) (result string, err error) {
 	context := ud.(*Context)
 	sync_queue := context.sync_queue
+	cli, err := GetRedisConnection()
+	if err != nil {
+		return
+	}
+	defer cli.Close()
 
-	cli := context.redis
 	all_key_strings, err := cli.Exec("keys", "*")
 	if err != nil {
 		Error("sync_all cmd service failed:%v", err)
@@ -126,7 +130,11 @@ func count(ud interface{}, args []string) (result string, err error) {
 
 func check(ud interface{}, args []string) (result string, err error) {
 	context := ud.(*Context)
-	cli := context.redis
+	cli, err := GetRedisConnection()
+	if err != nil {
+		return
+	}
+	defer cli.Close()
 	db := context.db
 
 	detail := false
@@ -208,7 +216,11 @@ func check(ud interface{}, args []string) (result string, err error) {
 
 func fast_check(ud interface{}, args []string) (result string, err error) {
 	context := ud.(*Context)
-	cli := context.redis
+	cli, err := GetRedisConnection()
+	if err != nil {
+		return
+	}
+	defer cli.Close()
 	db := context.db
 
 	detail := false
@@ -322,7 +334,11 @@ func restore(ud interface{}, key string) (err error) {
 
 	var leveldb_data map[string]string
 	err = json.Unmarshal(chunk, &leveldb_data)
-	cli := context.redis
+	cli, err := GetRedisConnection()
+	if err != nil {
+		return
+	}
+	defer cli.Close()
 	redis_data := make(map[string]string)
 	err = cli.Hgetall(key, redis_data)
 	if err != nil {
@@ -428,8 +444,11 @@ func diff(ud interface{}, args []string) (result string, err error) {
 
 	key := args[0]
 	context := ud.(*Context)
-
-	cli := context.redis
+	cli, err := GetRedisConnection()
+	if err != nil {
+		return
+	}
+	defer cli.Close()
 	db := context.db
 	// query redis
 	left := make(map[string]string)
@@ -478,11 +497,6 @@ func diff(ud interface{}, args []string) (result string, err error) {
 }
 
 func (context *Context) Register(c *CmdService) {
-	err := context.redis.Connect()
-	if err != nil {
-		Panic("register cmd service failed:%v", err)
-	}
-
 	Info("register command service")
 	c.Register("help", context, help)
 	c.Register("procs", context, procs)
@@ -500,10 +514,14 @@ func (context *Context) Register(c *CmdService) {
 	c.Register("restore_all", context, restore_all)
 }
 
+func GetRedisConnection() (cli *redis.Redis, err error) {
+	cli = redis.NewRedis(setting.Redis.Host, setting.Redis.Password, setting.Redis.Db)
+	err = cli.Connect()
+	return
+}
+
 func NewContext() *Context {
 	context := new(Context)
-	cli := redis.NewRedis(setting.Redis.Host, setting.Redis.Password, setting.Redis.Db)
-	context.redis = cli
 	context.quit_chan = make(chan bool)
 	return context
 }
