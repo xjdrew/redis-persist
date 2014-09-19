@@ -56,7 +56,7 @@ type serverResponse struct {
 }
 
 func (c *serverCodec) ReadRequestHeader(r *rpc.Request) error {
-    var sz uint16
+    var sz uint32
     err := binary.Read(c.c, binary.BigEndian, &sz)
     if err != nil {
         return err
@@ -124,7 +124,9 @@ func (c *serverCodec) WriteResponse(r *rpc.Response, x interface{}) error {
         resp.Error = r.Error
     }
     raw_message, err := json.Marshal(resp)
-    binary.Write(c.c, binary.BigEndian, len(raw_message))
+    var package_len uint32
+    package_len = uint32(len(raw_message))
+    binary.Write(c.c, binary.BigEndian, package_len)
     n, err := c.c.Write(raw_message)
     if err != nil {
         return err
