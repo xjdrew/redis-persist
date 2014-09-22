@@ -25,6 +25,7 @@ type Redis struct {
 	Db                 int
 	NotificationConfig string
 	Event              string
+	Expire             bool
 }
 
 type LeveldbConfig struct {

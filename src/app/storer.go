@@ -91,7 +91,9 @@ func (s *Storer) save(key string) {
 	}
 
 	// expire key
-	s.expire(key, resp)
+	if setting.Redis.Expire {
+		s.expire(key, resp)
+	}
 
 	Info("save key:%s, data len:%d", key, len(chunk))
 	return

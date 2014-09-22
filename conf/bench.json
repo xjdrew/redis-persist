@@ -3,7 +3,8 @@
         "host":"172.16.100.205:3536",
         "password":"foobared",
         "db":2,
-        "event":"rename_to"
+        "event":"rename_to",
+        "expire": false
     },
 
     "leveldb":{
