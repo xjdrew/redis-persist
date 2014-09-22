@@ -41,7 +41,7 @@ type Log struct {
 	Level int
 }
 
-type Zinc struct {
+type Agent struct {
 	Addr string
 }
 
@@ -50,7 +50,7 @@ type Setting struct {
 	Leveldb LeveldbConfig
 	Manager Manager
 	Log     Log
-	Zinc    Zinc
+	Agent   Agent
 }
 
 func usage() {
@@ -102,6 +102,7 @@ func main() {
 	m := NewMonitor()
 	s := NewStorerMgr(database, 5)
 	c := NewCmdService()
+	agent := NewAgent(database)
 
 	context := NewContext()
 	context.db = database
@@ -111,13 +112,11 @@ func main() {
 	context.Register(c)
 	context.sync_queue = make(chan string, 1)
 
-	zinc_agent := NewZincAgent(setting, database)
-
 	go handleSignal(context.quit_chan)
 	go m.Start(context.sync_queue)
 	go s.Start(context.sync_queue)
 	go c.Start()
-	go StartZincAgent(zinc_agent)
+	go agent.Start()
 
 	Info("start succeed")
 	Error("catch signal %v, program will exit", <-context.quit_chan)

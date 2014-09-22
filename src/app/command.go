@@ -92,7 +92,7 @@ func (c *CmdService) Start() {
 		conn, err := c.ln.Accept()
 		if err != nil {
 			Error("accept failed:%v", err)
-			break
+			continue
 		}
 		c.wg.Add(1)
 		go c.handleConnection(conn)
