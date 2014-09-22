@@ -43,6 +43,10 @@ func (agent *ZincAgent) Get(key *string, value *string) error {
 		Error("query key:%s failed:%s", key, err)
 		return err
 	}
+	if t == nil {
+		*value = "[]"
+		return nil
+	}
 	var data map[string]string
 	if err = json.Unmarshal(t, &data); err != nil {
 		Error("unmarshal key:%s failed:%v", key, err)
