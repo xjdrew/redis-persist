@@ -156,6 +156,7 @@ func check(ud interface{}, args []string) (result string, err error) {
 		return
 	}
 	keys := ret.([]string)
+	sort.Strings(keys)
 	total := len(keys)
 
 	for i, key := range keys {
@@ -474,7 +475,7 @@ func diff(ud interface{}, args []string) (result string, err error) {
 
 	chunk, err := db.Get([]byte(key))
 	if chunk == nil || err != nil {
-		Error("fetch data failed:%v", err)
+		Error("fetch data from leveldb failed:%v", err)
 		return
 	}
 
@@ -523,7 +524,7 @@ func (context *Context) Register(c *CmdService) {
 	c.Register("diff", context, diff)
 	c.Register("shutdown", context, shutdown)
 	c.Register("keys", context, keys)
-	c.Register("check", context, check)
+	c.Register("check_all", context, check)
 	c.Register("fast_check", context, fast_check)
 	c.Register("restore_one", context, restore_one)
 	c.Register("restore_all", context, restore_all)
