@@ -74,6 +74,7 @@ func (self *AgentSvr) handleConnection(conn *net.TCPConn) {
 		}
 	}()
 
+	Info("new agent connection:%v", conn.RemoteAddr())
 	for {
 		var sz uint32
 		err := binary.Read(conn, binary.BigEndian, &sz)
@@ -145,14 +146,7 @@ func handlerGet(ud interface{}, params interface{}) (result interface{}, err err
 		return
 	}
 
-	arr := make([]string, 2*len(data))
-	i := 0
-	for key, val := range data {
-		arr[i] = key
-		arr[i+1] = val
-		i = i + 2
-	}
-	result = arr
+	result = data
 	return
 }
 
