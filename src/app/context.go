@@ -52,11 +52,8 @@ func shutdown(ud interface{}, args []string) (result string, err error) {
 	}
 
 	context := ud.(*Context)
-	context.c.Stop()
-	context.m.Stop()
-	context.s.Stop()
-	context.quit_chan <- true
-	result = "done"
+	go safeQuit(context)
+	result = "please close the connection to quit the process"
 	return
 }
 

@@ -98,6 +98,9 @@ func (self *AgentSvr) handleConnection(conn *net.TCPConn) {
 }
 
 func (self *AgentSvr) Start() {
+	self.wg.Add(1)
+	defer self.wg.Done()
+
 	ln, err := net.Listen("tcp", setting.Agent.Addr)
 	if err != nil {
 		Panic("resolve local addr failed:%s", err.Error())
@@ -108,11 +111,15 @@ func (self *AgentSvr) Start() {
 	self.Register("Get", self, handlerGet)
 
 	self.ln = ln
-	self.wg.Add(1)
 	for {
 		conn, err := self.ln.Accept()
 		if err != nil {
 			Error("accept failed:%v", err)
+			if opErr, ok := err.(*net.OpError); ok {
+				if !opErr.Temporary() {
+					break
+				}
+			}
 			continue
 		}
 		self.wg.Add(1)

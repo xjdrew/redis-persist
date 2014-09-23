@@ -15,6 +15,7 @@ type Context struct {
 	m          *Monitor
 	s          *StorerMgr
 	c          *CmdService
+	agent      *AgentSvr
 	quit_chan  chan bool
 	sync_queue chan string
 }
@@ -59,7 +60,19 @@ func usage() {
 	os.Exit(2)
 }
 
-func handleSignal(quit chan bool) {
+func safeQuit(context *Context) {
+	context.c.Stop()
+	Error("wait context")
+	context.agent.Stop()
+	Error("wait agent")
+	context.m.Stop()
+	Error("wait monitor")
+	context.s.Stop()
+	Error("wait storer")
+	context.quit_chan <- true
+}
+
+func handleSignal(context *Context) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	for sig := range c {
@@ -67,7 +80,7 @@ func handleSignal(quit chan bool) {
 		case syscall.SIGHUP:
 			Error("catch sighup, ignore")
 		default:
-			quit <- true
+			safeQuit(context)
 		}
 	}
 }
@@ -109,10 +122,11 @@ func main() {
 	context.m = m
 	context.s = s
 	context.c = c
+	context.agent = agent
 	context.Register(c)
 	context.sync_queue = make(chan string, 1)
 
-	go handleSignal(context.quit_chan)
+	go handleSignal(context)
 	go m.Start(context.sync_queue)
 	go s.Start(context.sync_queue)
 	go c.Start()

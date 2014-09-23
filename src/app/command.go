@@ -78,6 +78,7 @@ func (c *CmdService) Register(cmd string, ud interface{}, handler CmdHandler) {
 
 func (c *CmdService) Start() {
 	// no need add one, save one for the last connection
+	c.wg.Add(1)
 	defer c.wg.Done()
 
 	ln, err := net.Listen("tcp", c.addr)
@@ -92,6 +93,11 @@ func (c *CmdService) Start() {
 		conn, err := c.ln.Accept()
 		if err != nil {
 			Error("accept failed:%v", err)
+			if opErr, ok := err.(*net.OpError); ok {
+				if !opErr.Temporary() {
+					break
+				}
+			}
 			continue
 		}
 		c.wg.Add(1)

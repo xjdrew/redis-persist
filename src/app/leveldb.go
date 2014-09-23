@@ -101,7 +101,7 @@ func NewLeveldb(name string) *Leveldb {
 
 	roptions := levigo.NewReadOptions()
 	roptions.SetVerifyChecksums(false)
-	roptions.SetFillCache(false)
+	roptions.SetFillCache(true)
 
 	woptions := levigo.NewWriteOptions()
 	// set sync false
