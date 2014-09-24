@@ -74,7 +74,7 @@ func safeQuit(context *Context) {
 
 func handleSignal(context *Context) {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGHUP)
 	for sig := range c {
 		switch sig {
 		case syscall.SIGHUP:
