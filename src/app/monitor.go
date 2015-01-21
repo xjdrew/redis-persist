@@ -33,9 +33,14 @@ func (m *Monitor) subscribe() error {
 	return nil
 }
 
-func (m *Monitor) reconnect() {
+func (m *Monitor) reconnect() bool {
 	times := 0
 	for {
+		if m.quit_flag {
+			Error("close redis connection, monitor will exit")
+			return false
+		}
+
 		wait := times
 		times = times + 1
 
@@ -58,6 +63,7 @@ func (m *Monitor) reconnect() {
 			break
 		}
 	}
+	return true
 }
 
 func (m *Monitor) Start(queue chan string) {
@@ -73,16 +79,14 @@ func (m *Monitor) Start(queue chan string) {
 
 	for {
 		resp, err := m.cli.ReadResponse()
-		if m.quit_flag {
-			close(queue)
-			Error("close redis connection, monitor will exit")
-			break
-		}
-
 		if err != nil {
 			Error("recv message failed, try to reconnect to redis:%v", err)
-			m.reconnect()
-			continue
+			if m.reconnect() {
+				continue
+			} else {
+				close(queue)
+				break
+			}
 		}
 		if data, ok := resp.([]string); ok {
 			if len(data) != 3 || data[0] != "message" {
