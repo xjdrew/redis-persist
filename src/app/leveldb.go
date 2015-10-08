@@ -31,7 +31,7 @@ func (self *Leveldb) BatchPut(args ...[]byte) error {
 	batch := levigo.NewWriteBatch()
 	defer batch.Close()
 
-	for i := 0; i < sz-1; i++ {
+	for i := 0; i < sz-1; i = i + 2 {
 		batch.Put(args[i], args[i+1])
 	}
 	return self.db.Write(self.woptions, batch)
